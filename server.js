@@ -168,22 +168,18 @@ class SSEConnectionManager {
   }
 }
 
-console.log('Init sseManager');
 // Initialize the SSE connection manager
 const sseManager = new SSEConnectionManager();
 
-console.log('Init express');
 // Create Express app
 const app = express();
 
-console.log('Init helmet');
 // Security and CORS middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow SSE connections
   crossOriginEmbedderPolicy: false
 }));
 
-console.log('Init cors');
 app.use(cors({
   origin: process.env.FRONTEND_ORIGINS ? process.env.FRONTEND_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:5173'],
   credentials: true,
@@ -198,21 +194,16 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 
-console.log('Init rate limit');
 app.use(limiter);
 
-console.log('Init body parsing');
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-console.log('Init connect to database');
 // Connect to MongoDB
 async function connectToDatabase() {
   try {
     await mongoose.connect(MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
