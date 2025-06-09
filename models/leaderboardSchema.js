@@ -1,6 +1,7 @@
+const mongoose = require('mongoose');
 const playerSchema = require('./playerSchema.js');
 
-export const leaderboardSchema = new mongoose.Schema({
+const leaderboardSchema = new mongoose.Schema({
   tournamentId: { type: String, required: true, unique: true },
   lastUpdated: Date,
   id: String,
@@ -20,3 +21,5 @@ export const leaderboardSchema = new mongoose.Schema({
   },
   leaderboard: [playerSchema]
 });
+
+module.exports = leaderboardSchema;

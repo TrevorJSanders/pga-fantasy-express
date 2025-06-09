@@ -1,4 +1,6 @@
-export const tournamentSchema = new mongoose.Schema({
+const mongoose = require('mongoose');
+
+const tournamentSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   course: String,
   endDatetime: Date,
@@ -13,3 +15,5 @@ export const tournamentSchema = new mongoose.Schema({
     enum: ['Completed', 'In Progress', 'Scheduled', 'Paused']
   }
 });
+
+module.exports = tournamentSchema;

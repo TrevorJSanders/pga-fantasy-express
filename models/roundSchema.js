@@ -1,4 +1,6 @@
-export const roundSchema = new mongoose.Schema({
+const mongoose = require('mongoose');
+
+const roundSchema = new mongoose.Schema({
   id: String,
   scorecard: String,
   round: Number,
@@ -10,3 +12,5 @@ export const roundSchema = new mongoose.Schema({
   scores: { type: String, default: null },
   score: Number
 });
+
+module.exports = roundSchema;
