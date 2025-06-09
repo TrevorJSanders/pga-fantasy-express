@@ -7,8 +7,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const cluster = require('cluster');
-const numCPUs = require('os').cpus().length;
+const tournamentsRouter = require('./routes/tournaments.js');
 const tournamentSchema = require('./models/tournamentSchema.js');
 const leaderboardSchema = require('./models/leaderboardSchema.js');
 
@@ -352,21 +351,7 @@ app.post('/webhook/tournament-update', (req, res) => {
   });
 });
 
-// API endpoint to get current tournament data
-app.get('/api/tournaments', async (req, res) => {
-  try {
-    const tournaments = await Tournament.find().select('name status lastUpdated');
-
-    res.json({
-      tournaments: tournaments,
-      count: tournaments.length,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error fetching tournaments:', error);
-    res.status(500).json({ error: 'Failed to fetch tournaments' });
-  }
-});
+app.use('/api/tournaments', tournamentsRouter);
 
 // API endpoint to get specific tournament leaderboard
 app.get('/api/tournaments/:tournamentId/leaderboard', async (req, res) => {
