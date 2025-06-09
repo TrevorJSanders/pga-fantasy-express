@@ -282,19 +282,6 @@ app.get('/stream/tournaments', async (req, res) => {
     // This aggregation joins tournaments with their leaderboard data
     const tournaments = await Leaderboard.aggregate([
       {
-        // Match tournaments that have recent activity or are currently active
-        $match: {
-          $or: [
-            { status: 'In Progress' },
-            { 
-              endDatetime: { 
-                $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
-              }
-            }
-          ]
-        }
-      },
-      {
         // Sort by status priority and then by start date
         $sort: {
           status: 1, // In Progress first
