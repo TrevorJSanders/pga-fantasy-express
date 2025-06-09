@@ -460,6 +460,8 @@ if (NODE_ENV === 'production' && cluster.isMaster) {
   });
 } else {
   // Worker process
+  console.log(`Worker ${process.pid} attempting a start server`);
   startServer();
+  console.log(`Worker ${process.pid} started successfully`);
 }
     
