@@ -1,8 +1,7 @@
 // Railway SSE Middleware Server for Live Golf Tournament Updates
 // This server maintains persistent SSE connections and broadcasts real-time tournament data
 
-console.log('HERE');
-
+// Dependencies
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -19,6 +18,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN;
 const NODE_ENV = process.env.NODE_ENV;
 
+console.log('Environment Variables:');
 console.log(`NODE_ENV: ${NODE_ENV}`);
 console.log(`PORT: ${PORT}`);
 
@@ -168,18 +168,22 @@ class SSEConnectionManager {
   }
 }
 
+console.log('Init sseManager');
 // Initialize the SSE connection manager
 const sseManager = new SSEConnectionManager();
 
+console.log('Init express');
 // Create Express app
 const app = express();
 
+console.log('Init helmet');
 // Security and CORS middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow SSE connections
   crossOriginEmbedderPolicy: false
 }));
 
+console.log('Init cors');
 app.use(cors({
   origin: process.env.FRONTEND_ORIGINS ? process.env.FRONTEND_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:5173'],
   credentials: true,
@@ -194,12 +198,15 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 
+console.log('Init rate limit');
 app.use(limiter);
 
+console.log('Init body parsing');
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+console.log('Init connect to database');
 // Connect to MongoDB
 async function connectToDatabase() {
   try {
