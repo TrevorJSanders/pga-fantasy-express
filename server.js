@@ -355,7 +355,7 @@ app.post('/webhook/tournament-update', (req, res) => {
 // API endpoint to get current tournament data
 app.get('/api/tournaments', async (req, res) => {
   try {
-    const tournaments = await Tournament.find({});
+    const tournaments = await Tournament.find().select('name status lastUpdated');
 
     res.json({
       tournaments: tournaments,
