@@ -274,46 +274,6 @@ app.get('/stream/tournaments', async (req, res) => {
     'Access-Control-Allow-Credentials': 'true'
   });
 
-  app.get('/api/tournaments', async (req, res) => {
-  try {
-    console.log('Fetching tournaments list...');
-    
-    // Get tournaments with active leaderboards
-    // This aggregation joins tournaments with their leaderboard data
-    const tournaments = await Leaderboard.aggregate([
-      {
-        // Sort by status priority and then by start date
-        $sort: {
-          status: 1, // In Progress first
-          startDatetime: -1 // Then by most recent
-        }
-      }
-    ]);
-
-    console.log(`Found ${tournaments.length} active tournaments`);
-
-    res.json({
-      tournaments: tournaments,
-      count: tournaments.length,
-      timestamp: new Date().toISOString(),
-      // Add metadata that might be useful for the frontend
-      metadata: {
-        activeCount: tournaments.filter(t => t.status === 'In Progress').length,
-        scheduledCount: tournaments.filter(t => t.status === 'Scheduled').length,
-        totalPlayers: tournaments.reduce((sum, t) => sum + t.playerCount, 0)
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching tournaments:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch tournaments',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
   // Extract tournament IDs from query parameters
   const tornamentIdsParam = req.query.tournaments || req.query.tournamentIds || '';
   const tournamentIds = tornamentIdsParam ? tornamentIdsParam.split(',').filter(id => id.trim()) : [];
@@ -395,9 +355,7 @@ app.post('/webhook/tournament-update', (req, res) => {
 // API endpoint to get current tournament data
 app.get('/api/tournaments', async (req, res) => {
   try {
-    const tournaments = await Tournament.find({
-      status: { $in: ['In Progress', 'Scheduled'] }
-    }).select('id name status startDatetime endDatetime location course');
+    const tournaments = await Tournament.find({});
 
     res.json({
       tournaments: tournaments,
