@@ -438,4 +438,3 @@ async function startServer() {
 
 console.log(`Starting server process: ${process.pid}`);
 startServer();
-    
