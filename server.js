@@ -7,7 +7,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const tournamentsRouter = require('./routes/tournaments.js');
 const tournamentSchema = require('./models/tournamentSchema.js');
 const leaderboardSchema = require('./models/leaderboardSchema.js');
 
@@ -216,6 +215,9 @@ async function connectToDatabase() {
     process.exit(1);
   }
 }
+
+const tournamentsRouter = require('./routes/tournaments');
+app.use('/api/tournaments', tournamentsRouter);
 
 // Set up MongoDB Change Streams for real-time detection
 function setupChangeStreams() {
