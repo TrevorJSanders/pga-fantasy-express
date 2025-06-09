@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const tournamentSchema = require('./tournamentSchema.js');
 
 const tournamentSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -17,4 +16,4 @@ const tournamentSchema = new mongoose.Schema({
   }
 });
 
-module.exports = tournamentSchema;
+module.exports = mongoose.model('Tournament', tournamentSchema);

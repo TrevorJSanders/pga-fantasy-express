@@ -1,7 +1,6 @@
-// routes/tournaments.js
 const express = require('express');
 const router = express.Router();
-const Tournament = require('../models/Tournament');
+const Tournament = require('../models/tournamentSchema');
 
 // GET /api/tournaments - Get all tournaments, sorted by startDatetime descending
 router.get('/', async (req, res) => {
