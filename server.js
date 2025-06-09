@@ -280,7 +280,7 @@ app.get('/stream/tournaments', async (req, res) => {
     
     // Get tournaments with active leaderboards
     // This aggregation joins tournaments with their leaderboard data
-    const tournaments = await tournament_leaderboards.aggregate([
+    const tournaments = await Leaderboard.aggregate([
       {
         // Match tournaments that have recent activity or are currently active
         $match: {
