@@ -451,6 +451,7 @@ if (NODE_ENV === 'production' && cluster.isMaster) {
 
   // Fork workers equal to CPU count
   for (let i = 0; i < numCPUs; i++) {
+    console.log('Forking worker ${i + 1}');
     cluster.fork();
   }
 
