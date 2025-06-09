@@ -445,24 +445,6 @@ async function startServer() {
   });
 }
 
-// For production, use clustering to handle more concurrent connections
-if (NODE_ENV === 'production' && cluster.isMaster) {
-  console.log(`Master ${process.pid} is running`);
-
-  // Fork workers equal to CPU count
-  for (let i = 0; i < numCPUs; i++) {
-    console.log('Forking worker ${i + 1}');
-    cluster.fork();
-  }
-
-  cluster.on('exit', (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} died`);
-    cluster.fork();
-  });
-} else {
-  // Worker process
-  console.log(`Worker ${process.pid} attempting a start server`);
-  startServer();
-  console.log(`Worker ${process.pid} started successfully`);
-}
+console.log(`Starting server process: ${process.pid}`);
+startServer();
     
