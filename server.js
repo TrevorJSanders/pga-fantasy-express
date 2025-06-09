@@ -1,6 +1,8 @@
 // Railway SSE Middleware Server for Live Golf Tournament Updates
 // This server maintains persistent SSE connections and broadcasts real-time tournament data
 
+console.log('HERE');
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -16,6 +18,9 @@ const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI;
 const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN;
 const NODE_ENV = process.env.NODE_ENV;
+
+console.log(`NODE_ENV: ${NODE_ENV}`);
+console.log(`PORT: ${PORT}`);
 
 // Create models
 const Tournament = mongoose.model('Tournament', tournamentSchema, 'tournaments');
