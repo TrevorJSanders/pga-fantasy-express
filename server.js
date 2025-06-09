@@ -7,8 +7,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const tournamentSchema = require('./models/tournamentSchema.js');
-const leaderboardSchema = require('./models/leaderboardSchema.js');
+
+// Import models (not schemas)
+const Tournament = require('./models/tournamentSchema.js');
+const Leaderboard = require('./models/leaderboardSchema.js');
 
 // Environment configuration
 const PORT = process.env.PORT;
@@ -19,10 +21,6 @@ const NODE_ENV = process.env.NODE_ENV;
 console.log('Environment Variables:');
 console.log(`NODE_ENV: ${NODE_ENV}`);
 console.log(`PORT: ${PORT}`);
-
-// Create models
-const Tournament = mongoose.model('Tournament', tournamentSchema, 'tournaments');
-const Leaderboard = mongoose.model('Leaderboard', leaderboardSchema, 'tournament_leaderboards');
 
 // SSE Connection Manager
 // This class handles all active SSE connections and broadcasting logic
@@ -216,6 +214,7 @@ async function connectToDatabase() {
   }
 }
 
+// Import and use routes
 const tournamentsRouter = require('./routes/tournaments');
 app.use('/api/tournaments', tournamentsRouter);
 
@@ -352,8 +351,6 @@ app.post('/webhook/tournament-update', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
-app.use('/api/tournaments', tournamentsRouter);
 
 // API endpoint to get specific tournament leaderboard
 app.get('/api/tournaments/:tournamentId/leaderboard', async (req, res) => {
