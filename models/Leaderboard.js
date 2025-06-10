@@ -9,7 +9,10 @@ const roundSchema = new mongoose.Schema({
   position: String,
   total: String,
   thru: String,
-  scores: String | null,
+  scores: {
+    type: String,
+    default: null // optional
+  },
   score: Number
 }, { _id: false });
 
