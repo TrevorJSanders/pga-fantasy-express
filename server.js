@@ -12,7 +12,6 @@ console.log('Environment Variables:');
 console.log(`NODE_ENV: ${NODE_ENV}`);
 console.log(`PORT: ${PORT}`);
 
-dotenv.config();
 const app = express();
 app.use(express.json());
 
