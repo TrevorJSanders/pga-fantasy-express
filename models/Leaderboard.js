@@ -1,26 +1,26 @@
 const mongoose = require('mongoose');
 
 const roundSchema = new mongoose.Schema({
-  id: string,
-  scorecard: string,
-  round: number,
-  startingTee: number,
+  id: String,
+  scorecard: String,
+  round: Number,
+  startingTee: Number,
   teeTime: Date,
-  position: string,
-  total: string,
-  thru: string,
-  scores: string | null,
-  score: number
+  position: String,
+  total: String,
+  thru: String,
+  scores: String | Null,
+  score: Number
 }, { _id: false });
 
 const playerSchema = new mongoose.Schema({
-  id: string,
-  tournament: string,
-  player: string,
-  position: string,
-  positionValue: number,
-  total: string,
-  strokes: string,
+  id: String,
+  tournament: String,
+  player: String,
+  position: String,
+  positionValue: Number,
+  total: String,
+  strokes: String,
   rounds: [roundSchema]
 }, { _id: false });
 
