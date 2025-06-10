@@ -45,4 +45,4 @@ const leaderboardSchema = new mongoose.Schema({
   leaderboard: [playerSchema]
 });
 
-module.exports = mongoose.model('Leaderboard', leaderboardSchema);
+module.exports = mongoose.model('Leaderboard', leaderboardSchema, 'tournament_leaderboards');

@@ -13,4 +13,4 @@ const tournamentSchema = new mongoose.Schema({
   status: { type: String, enum: ['Completed', 'In Progress', 'Scheduled', 'Paused'] }
 });
 
-module.exports = mongoose.model('Tournament', tournamentSchema);
+module.exports = mongoose.model('Tournament', tournamentSchema, 'tournaments');

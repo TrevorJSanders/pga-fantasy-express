@@ -7,6 +7,7 @@ router.get('/', async (req, res) => {
   console.log("In here baby!");
   try {
     const tournaments = await Tournament.find().sort({ startDatetime: -1 });
+    console.log(tournaments);
     res.json(tournaments);
   } catch (err) {
     res.status(500).json({ message: err.message });
