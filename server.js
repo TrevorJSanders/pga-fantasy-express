@@ -9,11 +9,12 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
+const Leaderboard = require('./models/Leaderboard');
+const Tournament = require('./models/Tournament');
 
 // Environment configuration
 const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI;
-const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN;
 const NODE_ENV = process.env.NODE_ENV;
 
 console.log('Environment Variables:');
@@ -306,44 +307,6 @@ app.get('/stream/tournaments', async (req, res) => {
       });
     }
   }
-});
-
-// Webhook endpoint for Atlas function notifications
-app.post('/webhook/tournament-update', (req, res) => {
-  // Verify webhook token for security
-  const authHeader = req.headers.authorization;
-  const providedToken = authHeader ? authHeader.replace('Bearer ', '') : '';
-  
-  if (providedToken !== WEBHOOK_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const { tournaments, timestamp, source } = req.body;
-
-  if (!tournaments || !Array.isArray(tournaments)) {
-    return res.status(400).json({ error: 'Invalid tournaments data' });
-  }
-
-  console.log(`Received webhook notification for ${tournaments.length} tournaments from ${source}`);
-
-  // Broadcast updates for each tournament
-  tournaments.forEach(tournament => {
-    const updateData = {
-      tournamentId: tournament.tournamentId,
-      name: tournament.name,
-      changeType: tournament.changeType,
-      playerCount: tournament.playerCount,
-      webhookTimestamp: timestamp
-    };
-
-    sseManager.broadcastTournamentUpdate(tournament.tournamentId, updateData);
-  });
-
-  res.json({ 
-    success: true, 
-    processedTournaments: tournaments.length,
-    timestamp: new Date().toISOString()
-  });
 });
 
 // Connection statistics endpoint
