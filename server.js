@@ -1,23 +1,43 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
+
+const PORT = process.env.PORT;
+const MONGODB_URI = process.env.MONGODB_URI;
+const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN;
+const NODE_ENV = process.env.NODE_ENV;
+
+console.log('Environment Variables:');
+console.log(`NODE_ENV: ${NODE_ENV}`);
+console.log(`PORT: ${PORT}`);
 
 dotenv.config();
 const app = express();
 app.use(express.json());
 
-// Connect to MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+
+async function connectToDatabase() {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    console.log('Connected to MongoDB Atlas');
+    
+    // Set up change streams for real-time updates
+    setupChangeStreams();
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
+}
+
+connectToDatabase();
 
 // Use routes
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leaderboards', leaderboardRoutes);
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
