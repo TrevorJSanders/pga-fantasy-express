@@ -24,9 +24,6 @@ async function connectToDatabase() {
       socketTimeoutMS: 45000,
     });
     console.log('Connected to MongoDB Atlas');
-    
-    // Set up change streams for real-time updates
-    setupChangeStreams();
   } catch (error) {
     console.error('MongoDB connection error:', error);
     process.exit(1);
