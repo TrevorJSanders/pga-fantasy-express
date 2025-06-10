@@ -161,6 +161,19 @@ class SSEConnectionManager {
       }))
     };
   }
+
+  // Validate and remove stale connections
+  validateConnections() {
+    const now = new Date();
+    const staleThreshold = 5 * 60 * 1000; // 5 minutes
+    
+    this.connections.forEach((connection, connectionId) => {
+        if (now - connection.lastPing > staleThreshold) {
+            console.log(`Removing stale connection: ${connectionId}`);
+            this.removeConnection(connectionId);
+        }
+    });
+  }
 }
 
 // Initialize the SSE connection manager
@@ -215,37 +228,63 @@ async function connectToDatabase() {
 
 // Set up MongoDB Change Streams for real-time detection
 function setupChangeStreams() {
-  // Watch for changes in the leaderboards collection
-  const leaderboardChangeStream = Leaderboard.watch([
-    { $match: { operationType: { $in: ['update', 'replace', 'insert'] } } }
-  ], { fullDocument: 'updateLookup' });
-
-  leaderboardChangeStream.on('change', (change) => {
-    console.log('Leaderboard change detected:', change.operationType);
+    console.log('Setting up MongoDB change streams...');
     
-    if (change.fullDocument) {
-      const tournamentId = change.fullDocument.tournamentId;
-      const updateData = {
-        tournamentId: tournamentId,
-        name: change.fullDocument.name,
-        status: change.fullDocument.status,
-        lastUpdated: change.fullDocument.lastUpdated,
-        playerCount: change.fullDocument.leaderboard ? change.fullDocument.leaderboard.length : 0,
-        changeType: change.operationType,
-        // Include top 10 leaderboard for immediate display
-        topPlayers: change.fullDocument.leaderboard ? change.fullDocument.leaderboard.slice(0, 10) : []
-      };
+    try {
+        // Watch for changes in the leaderboards collection
+        const leaderboardChangeStream = Leaderboard.watch([
+            { 
+                $match: { 
+                    operationType: { $in: ['update', 'replace', 'insert'] },
+                    // Optional: Only watch for changes to specific fields
+                    'updateDescription.updatedFields.leaderboard': { $exists: true }
+                } 
+            }
+        ], { 
+            fullDocument: 'updateLookup',
+            // Add resume token support for reliability
+            resumeAfter: null 
+        });
 
-      // Broadcast to all subscribers of this tournament
-      sseManager.broadcastTournamentUpdate(tournamentId, updateData);
+        leaderboardChangeStream.on('change', (change) => {
+            console.log(`Leaderboard change detected: ${change.operationType} for tournament ${change.fullDocument?.tournamentId}`);
+            
+            if (change.fullDocument) {
+                const tournamentId = change.fullDocument.tournamentId;
+                const updateData = {
+                    tournamentId: tournamentId,
+                    name: change.fullDocument.name,
+                    status: change.fullDocument.status,
+                    lastUpdated: change.fullDocument.lastUpdated,
+                    playerCount: change.fullDocument.leaderboard ? change.fullDocument.leaderboard.length : 0,
+                    changeType: change.operationType,
+                    topPlayers: change.fullDocument.leaderboard ? change.fullDocument.leaderboard.slice(0, 10) : []
+                };
+
+                // Broadcast to all subscribers of this tournament
+                const broadcastCount = sseManager.broadcastTournamentUpdate(tournamentId, updateData);
+                console.log(`Broadcasted update to ${broadcastCount} connections`);
+            }
+        });
+
+        leaderboardChangeStream.on('error', (error) => {
+            console.error('Change stream error:', error);
+            // Implement exponential backoff for reconnection
+            setTimeout(() => {
+                console.log('Attempting to restart change stream...');
+                setupChangeStreams();
+            }, 5000);
+        });
+
+        leaderboardChangeStream.on('close', () => {
+            console.log('Change stream closed, attempting to reconnect...');
+            setTimeout(setupChangeStreams, 2000);
+        });
+
+    } catch (error) {
+        console.error('Failed to setup change streams:', error);
+        setTimeout(setupChangeStreams, 10000);
     }
-  });
-
-  leaderboardChangeStream.on('error', (error) => {
-    console.error('Change stream error:', error);
-    // Attempt to restart the change stream
-    setTimeout(setupChangeStreams, 5000);
-  });
 }
 
 // Health check endpoint
@@ -260,14 +299,19 @@ app.get('/health', (req, res) => {
 
 // SSE endpoint for tournament updates
 app.get('/stream/tournaments', async (req, res) => {
+
   // Set SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': req.headers.origin || '*',
-    'Access-Control-Allow-Credentials': 'true'
-  });
+  res.setHeader('Access-Control-Allow-Origin', 'pga-fantasy.trevspage.com');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Accept, Cache-Control');
+  
+  // Required SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  // Optional: Handle preflight requests
+  res.setHeader('Access-Control-Allow-Credentials', 'false');
 
   // Extract tournament IDs from query parameters
   const tornamentIdsParam = req.query.tournaments || req.query.tournamentIds || '';
