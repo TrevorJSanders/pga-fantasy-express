@@ -301,7 +301,7 @@ app.get('/health', (req, res) => {
 app.get('/stream/tournaments', async (req, res) => {
 
   // Set SSE headers
-  res.setHeader('Access-Control-Allow-Origin', 'pga-fantasy.trevspage.com');
+  res.setHeader('Access-Control-Allow-Origin', ['pga-fantasy.trevspage.com', 'localhost:5173']);
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Access-Control-Allow-Headers', 'Accept, Cache-Control');
   
