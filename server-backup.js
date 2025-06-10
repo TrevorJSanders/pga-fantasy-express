@@ -7,9 +7,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const tournamentsRouter = require('./routes/tournament.js');
-const tournamentSchema = require('./models/tournament.js');
-const leaderboardSchema = require('./models/leaderboardSchema.js');
+const tournamentsRouter = require('./routes/tournaments.js');
+const tournamentSchema = require('./models/Tournament.js');
+const leaderboardSchema = require('./models/Leaderboard.js');
 
 // Environment configuration
 const PORT = process.env.PORT;

@@ -1,26 +1,23 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const tournamentRoutes = require('./routes/tournaments');
+const leaderboardRoutes = require('./routes/leaderboards');
 
 dotenv.config();
 const app = express();
-
 app.use(express.json());
 
-mongoose.connect(process.env.MONGODB_URI, {
+// Connect to MongoDB Atlas
+mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
-    console.log('Connected to MongoDB Atlas');
-}).catch((error) => {
-    console.error('MongoDB connection error:', error);
-    process.exit(1);
-});
+    useUnifiedTopology: true,
+}).then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-const tournamentsRoute = require('./routes/tournament.js');
-app.use('/api/tournaments', tournamentsRoute);
+// Use routes
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/leaderboards', leaderboardRoutes);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
