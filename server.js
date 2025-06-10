@@ -17,7 +17,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     process.exit(1);
 });
 
-const tournamentsRoute = require('./routes/tournaments.js');
+const tournamentsRoute = require('./routes/tournament.js');
 app.use('/api/tournaments', tournamentsRoute);
 
 const PORT = process.env.PORT || 3000;
