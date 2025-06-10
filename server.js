@@ -384,6 +384,10 @@ setInterval(() => {
 // Start the server
 async function startServer() {
   await connectToDatabase();
+
+  // Use routes
+  app.use('/api/tournaments', tournamentRoutes);
+  app.use('/api/leaderboards', leaderboardRoutes);
   
   app.listen(PORT, () => {
     console.log(`SSE Server running on port ${PORT}`);
