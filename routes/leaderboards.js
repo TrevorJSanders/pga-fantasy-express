@@ -4,7 +4,6 @@ const Leaderboard = require('../models/Leaderboard');
 
 // GET all leaderboards
 router.get('/', async (req, res) => {
-  console.log("What's good cuz!");
   try {
     const leaderboards = await Leaderboard.find().sort({ startDatetime: -1 });
     res.json(leaderboards);
@@ -15,7 +14,6 @@ router.get('/', async (req, res) => {
 
 // GET leaderboard by tournamentId
 router.get('/:tournamentId', async (req, res) => {
-  console.log("fruit!");
   try {
     const leaderboard = await Leaderboard.findOne({ tournamentId: req.params.tournamentId });
     if (!leaderboard) return res.status(404).json({ message: 'Not found' });
