@@ -299,18 +299,20 @@ app.get('/health', (req, res) => {
 
 // SSE endpoint for tournament updates
 app.get('/stream/tournaments', async (req, res) => {
-
-  // Set SSE headers
-  res.setHeader('Access-Control-Allow-Origin', ['pga-fantasy.trevspage.com', 'localhost:5173']);
+// Get the origin from the request
+  const origin = req.headers.origin;
+  const allowedOrigins = ['https://pga-fantasy.trevspage.com', 'http://localhost:5173'];
+  
+  // Set CORS headers - Access-Control-Allow-Origin must be a single string
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Access-Control-Allow-Headers', 'Accept, Cache-Control');
-  
-  // Required SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  
-  // Optional: Handle preflight requests
   res.setHeader('Access-Control-Allow-Credentials', 'false');
 
   // Extract tournament IDs from query parameters
