@@ -1,6 +1,18 @@
+console.log('Starting server...');
+
+console.log('Loading express...');
 const express = require('express');
+console.log('Express loaded successfully');
+
+console.log('Loading mongoose...');
 const mongoose = require('mongoose');
+console.log('Mongoose loaded successfully');
+
+console.log('Loading cors...');
 const cors = require('cors');
+console.log('CORS loaded successfully');
+
+console.log('All core modules loaded, server should start...');
 
 console.log('Loading config/headers...');
 const { configureHeaders } = require('./config/headers');
