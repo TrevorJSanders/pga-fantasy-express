@@ -1,44 +1,19 @@
-console.log('Starting server...');
-
-console.log('Loading express...');
 const express = require('express');
-console.log('Express loaded successfully');
-
-console.log('Loading mongoose...');
 const mongoose = require('mongoose');
-console.log('Mongoose loaded successfully');
-
-console.log('Loading cors...');
 const cors = require('cors');
-console.log('CORS loaded successfully');
 
-console.log('All core modules loaded, server should start...');
-
-console.log('Loading config/headers...');
 const { configureHeaders } = require('./config/headers');
-console.log('config/headers loaded successfully');
-
-console.log('Loading config/cors...');
 const { configureCors } = require('./config/cors');
-console.log('config/cors loaded successfully');
-
-console.log('Loading utils/changeStreams...');
 const { initializeChangeStreams } = require('./utils/changeStreams');
-console.log('utils/changeStreams loaded successfully');
-
-console.log('Loading routes/tournaments...');
 const tournamentRoutes = require('./routes/tournaments');
-console.log('routes/tournaments loaded successfully');
-
-console.log('Loading routes/sse...');
 const sseRoutes = require('./routes/sse');
-console.log('routes/sse loaded successfully');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Replace with your actual MongoDB connection string
 const MONGODB_URI = process.env.MONGODB_URI;
+const API_ENDPOINT_URI = process.env.API_ENDPOINT_URI;
 
 // Database connection
 mongoose.connect(MONGODB_URI, {
@@ -61,21 +36,8 @@ configureHeaders(app);
 app.use(express.json());
 
 // Routes
-console.log('Registering tournament routes...');
-try {
-  app.use('/api/tournaments', tournamentRoutes);
-  console.log('Tournament routes registered successfully');
-} catch (error) {
-  console.error('Error registering tournament routes:', error);
-}
-
-console.log('Registering SSE routes...');
-try {
-  app.use('/api/sse', sseRoutes);
-  console.log('SSE routes registered successfully');
-} catch (error) {
-  console.error('Error registering SSE routes:', error);
-}
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/sse', sseRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -102,5 +64,5 @@ process.on('SIGTERM', () => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`SSE endpoint available at: http://localhost:${PORT}/api/sse/tournaments`);
+  console.log(`SSE endpoint available at: ${API_ENDPOINT_URI}:${PORT}/api/sse/tournaments`);
 });
