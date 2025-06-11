@@ -34,8 +34,21 @@ configureHeaders(app);
 app.use(express.json());
 
 // Routes
-app.use('/api/tournaments', tournamentRoutes);
-app.use('/api/sse', sseRoutes);
+console.log('Registering tournament routes...');
+try {
+  app.use('/api/tournaments', tournamentRoutes);
+  console.log('Tournament routes registered successfully');
+} catch (error) {
+  console.error('Error registering tournament routes:', error);
+}
+
+console.log('Registering SSE routes...');
+try {
+  app.use('/api/sse', sseRoutes);
+  console.log('SSE routes registered successfully');
+} catch (error) {
+  console.error('Error registering SSE routes:', error);
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
