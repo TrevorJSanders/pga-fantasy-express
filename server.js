@@ -1,11 +1,26 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+
+console.log('Loading config/headers...');
 const { configureHeaders } = require('./config/headers');
+console.log('config/headers loaded successfully');
+
+console.log('Loading config/cors...');
 const { configureCors } = require('./config/cors');
+console.log('config/cors loaded successfully');
+
+console.log('Loading utils/changeStreams...');
 const { initializeChangeStreams } = require('./utils/changeStreams');
+console.log('utils/changeStreams loaded successfully');
+
+console.log('Loading routes/tournaments...');
 const tournamentRoutes = require('./routes/tournaments');
+console.log('routes/tournaments loaded successfully');
+
+console.log('Loading routes/sse...');
 const sseRoutes = require('./routes/sse');
+console.log('routes/sse loaded successfully');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
