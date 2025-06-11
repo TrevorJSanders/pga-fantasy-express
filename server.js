@@ -23,6 +23,7 @@ console.log(`PORT: ${PORT}`);
 
 // SSE Connection Manager
 // This class handles all active SSE connections and broadcasting logic
+// Enhanced SSE Connection Manager - FIXED VERSION
 class SSEConnectionManager {
   constructor() {
     this.connections = new Map(); // Store all active connections
@@ -31,7 +32,7 @@ class SSEConnectionManager {
 
   // Add a new SSE connection
   addConnection(connectionId, res, tournamentIds = []) {
-    console.log(`Adding SSE connection: ${connectionId}`);
+    console.log(`Adding SSE connection: ${connectionId} for tournaments: [${tournamentIds.join(', ')}]`);
     
     const connection = {
       id: connectionId,
@@ -49,20 +50,34 @@ class SSEConnectionManager {
         this.tournamentSubscriptions.set(tournamentId, new Set());
       }
       this.tournamentSubscriptions.get(tournamentId).add(connectionId);
+      console.log(`Subscribed connection ${connectionId} to tournament ${tournamentId}`);
     });
 
     // Set up connection cleanup when client disconnects
     res.on('close', () => {
+      console.log(`SSE response closed for connection: ${connectionId}`);
       this.removeConnection(connectionId);
     });
 
-    // Send initial connection confirmation
-    this.sendToConnection(connectionId, {
+    res.on('error', (error) => {
+      console.error(`SSE response error for connection ${connectionId}:`, error);
+      this.removeConnection(connectionId);
+    });
+
+    // IMPORTANT: Send connection established message AFTER the connection tracking is set up
+    // This ensures the connection is fully configured before we try to send data
+    const connectionMessage = {
       type: 'connection_established',
       connectionId: connectionId,
       timestamp: new Date().toISOString(),
-      subscribedTournaments: tournamentIds
-    });
+      subscribedTournaments: tournamentIds,
+      message: `Successfully connected to tournament stream`
+    };
+
+    // Use a small delay to ensure the response is ready
+    setTimeout(() => {
+      this.sendToConnection(connectionId, connectionMessage);
+    }, 100);
 
     return connection;
   }
@@ -78,32 +93,57 @@ class SSEConnectionManager {
         const subscribers = this.tournamentSubscriptions.get(tournamentId);
         if (subscribers) {
           subscribers.delete(connectionId);
+          console.log(`Unsubscribed connection ${connectionId} from tournament ${tournamentId}`);
           if (subscribers.size === 0) {
             this.tournamentSubscriptions.delete(tournamentId);
+            console.log(`No more subscribers for tournament ${tournamentId}`);
           }
         }
       });
 
+      // Close the response if it's still open
+      if (!connection.response.destroyed) {
+        try {
+          connection.response.end();
+        } catch (error) {
+          console.error(`Error closing response for ${connectionId}:`, error);
+        }
+      }
+
       this.connections.delete(connectionId);
+      console.log(`Connection ${connectionId} successfully removed. Active connections: ${this.connections.size}`);
     }
   }
 
-  // Send data to a specific connection
+  // Send data to a specific connection with enhanced error handling
   sendToConnection(connectionId, data) {
     const connection = this.connections.get(connectionId);
-    if (connection && !connection.response.destroyed) {
-      try {
-        const sseData = `data: ${JSON.stringify(data)}\n\n`;
-        connection.response.write(sseData);
-        connection.lastPing = new Date();
-        return true;
-      } catch (error) {
-        console.error(`Failed to send to connection ${connectionId}:`, error);
-        this.removeConnection(connectionId);
-        return false;
-      }
+    if (!connection) {
+      console.warn(`Attempted to send to non-existent connection: ${connectionId}`);
+      return false;
     }
-    return false;
+
+    if (connection.response.destroyed || connection.response.writableEnded) {
+      console.warn(`Connection ${connectionId} is already closed, removing from manager`);
+      this.removeConnection(connectionId);
+      return false;
+    }
+
+    try {
+      const sseData = `data: ${JSON.stringify(data)}\n\n`;
+      const writeSuccess = connection.response.write(sseData);
+      connection.lastPing = new Date();
+      
+      if (!writeSuccess) {
+        console.warn(`Write buffer full for connection ${connectionId}`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`Failed to send to connection ${connectionId}:`, error.message);
+      this.removeConnection(connectionId);
+      return false;
+    }
   }
 
   // Broadcast tournament updates to all relevant subscribers
@@ -122,13 +162,15 @@ class SSEConnectionManager {
       data: updateData
     };
 
+    console.log(`Broadcasting tournament ${tournamentId} update to ${subscribers.size} subscribers`);
+
     subscribers.forEach(connectionId => {
       if (this.sendToConnection(connectionId, message)) {
         successCount++;
       }
     });
 
-    console.log(`Broadcast tournament ${tournamentId} update to ${successCount}/${subscribers.size} connections`);
+    console.log(`Successfully broadcast to ${successCount}/${subscribers.size} connections for tournament ${tournamentId}`);
     return successCount;
   }
 
@@ -147,17 +189,28 @@ class SSEConnectionManager {
       }
     });
 
-    console.log(`Heartbeat sent to ${activeCount}/${this.connections.size} connections`);
+    if (this.connections.size > 0) {
+      console.log(`Heartbeat sent to ${activeCount}/${this.connections.size} connections`);
+    }
     return activeCount;
   }
 
-  // Get statistics about current connections
+  // Get detailed statistics about current connections
   getStats() {
+    const connectionDetails = Array.from(this.connections.values()).map(conn => ({
+      id: conn.id,
+      connectedAt: conn.connectedAt,
+      lastPing: conn.lastPing,
+      tournaments: Array.from(conn.tournamentIds)
+    }));
+
     return {
       totalConnections: this.connections.size,
+      connectionDetails,
       tournamentSubscriptions: Array.from(this.tournamentSubscriptions.keys()).map(tournamentId => ({
         tournamentId,
-        subscriberCount: this.tournamentSubscriptions.get(tournamentId).size
+        subscriberCount: this.tournamentSubscriptions.get(tournamentId).size,
+        subscribers: Array.from(this.tournamentSubscriptions.get(tournamentId))
       }))
     };
   }
@@ -166,13 +219,21 @@ class SSEConnectionManager {
   validateConnections() {
     const now = new Date();
     const staleThreshold = 5 * 60 * 1000; // 5 minutes
+    let removedCount = 0;
     
     this.connections.forEach((connection, connectionId) => {
-        if (now - connection.lastPing > staleThreshold) {
-            console.log(`Removing stale connection: ${connectionId}`);
-            this.removeConnection(connectionId);
-        }
+      if (now - connection.lastPing > staleThreshold) {
+        console.log(`Removing stale connection: ${connectionId} (last ping: ${connection.lastPing})`);
+        this.removeConnection(connectionId);
+        removedCount++;
+      }
     });
+
+    if (removedCount > 0) {
+      console.log(`Removed ${removedCount} stale connections`);
+    }
+    
+    return removedCount;
   }
 }
 
@@ -297,30 +358,39 @@ app.get('/health', (req, res) => {
   });
 });
 
-// SSE endpoint for tournament updates
+// SSE endpoint for tournament updates - FIXED VERSION
 app.get('/stream/tournaments', async (req, res) => {
-// Get the origin from the request
+  // CRITICAL: Set CORS headers FIRST, before any other processing
   const origin = req.headers.origin;
-  const allowedOrigins = ['https://pga-fantasy.trevspage.com', 'http://localhost:5173'];
+  const allowedOrigins = ['https://pga-fantasy.trevspage.com', 'http://localhost:5173', 'http://localhost:3000'];
   
-  // Set CORS headers - Access-Control-Allow-Origin must be a single string
+  // Set CORS headers immediately
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  res.setHeader('Access-Control-Allow-Headers', 'Accept, Cache-Control');
+  // Set SSE headers - these tell the browser this is a Server-Sent Events stream
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Accept, Cache-Control');
   res.setHeader('Access-Control-Allow-Credentials', 'false');
 
+  console.log('SSE connection request received from:', origin);
+
   // Extract tournament IDs from query parameters
-  const tornamentIdsParam = req.query.tournaments || req.query.tournamentIds || '';
-  const tournamentIds = tornamentIdsParam ? tornamentIdsParam.split(',').filter(id => id.trim()) : [];
+  const tournamentIdsParam = req.query.tournaments || req.query.tournamentIds || '';
+  const tournamentIds = tournamentIdsParam ? tournamentIdsParam.split(',').filter(id => id.trim()) : [];
   
+  console.log('Requested tournament IDs:', tournamentIds);
+
   // Generate unique connection ID
   const connectionId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // CRITICAL FIX: Send initial SSE response immediately to establish connection
+  // This prevents the browser from timing out while waiting for the first message
+  res.write('data: {"type":"connection_init","message":"SSE connection initializing"}\n\n');
   
   // Add this connection to the manager
   sseManager.addConnection(connectionId, res, tournamentIds);
@@ -328,31 +398,67 @@ app.get('/stream/tournaments', async (req, res) => {
   // Send initial tournament data if specific tournaments were requested
   if (tournamentIds.length > 0) {
     try {
+      console.log('Fetching initial data for tournaments:', tournamentIds);
+      
       const tournaments = await Leaderboard.find({ 
         tournamentId: { $in: tournamentIds } 
       }).select('tournamentId name status lastUpdated leaderboard');
 
-      tournaments.forEach(tournament => {
-        const initialData = {
-          type: 'initial_data',
-          tournamentId: tournament.tournamentId,
-          name: tournament.name,
-          status: tournament.status,
-          lastUpdated: tournament.lastUpdated,
-          playerCount: tournament.leaderboard ? tournament.leaderboard.length : 0,
-          topPlayers: tournament.leaderboard ? tournament.leaderboard.slice(0, 10) : []
-        };
+      console.log(`Found ${tournaments.length} tournaments in database`);
 
-        sseManager.sendToConnection(connectionId, initialData);
-      });
+      if (tournaments.length === 0) {
+        // If no tournaments found, send a message indicating this
+        sseManager.sendToConnection(connectionId, {
+          type: 'initial_data',
+          message: 'No tournaments found for requested IDs',
+          requestedIds: tournamentIds,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // Send data for each found tournament
+        tournaments.forEach(tournament => {
+          const initialData = {
+            type: 'initial_data',
+            tournamentId: tournament.tournamentId,
+            name: tournament.name,
+            status: tournament.status,
+            lastUpdated: tournament.lastUpdated,
+            playerCount: tournament.leaderboard ? tournament.leaderboard.length : 0,
+            topPlayers: tournament.leaderboard ? tournament.leaderboard.slice(0, 10) : []
+          };
+
+          console.log(`Sending initial data for tournament: ${tournament.name}`);
+          sseManager.sendToConnection(connectionId, initialData);
+        });
+      }
     } catch (error) {
       console.error('Error fetching initial tournament data:', error);
       sseManager.sendToConnection(connectionId, {
         type: 'error',
-        message: 'Failed to fetch initial tournament data'
+        message: 'Failed to fetch initial tournament data',
+        error: error.message,
+        timestamp: new Date().toISOString()
       });
     }
+  } else {
+    // If no specific tournaments requested, send a general message
+    sseManager.sendToConnection(connectionId, {
+      type: 'initial_data',
+      message: 'Connected to tournament stream - no specific tournaments requested',
+      timestamp: new Date().toISOString()
+    });
   }
+
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log(`Client disconnected: ${connectionId}`);
+    sseManager.removeConnection(connectionId);
+  });
+
+  req.on('error', (err) => {
+    console.error(`SSE request error for ${connectionId}:`, err);
+    sseManager.removeConnection(connectionId);
+  });
 });
 
 // Connection statistics endpoint
