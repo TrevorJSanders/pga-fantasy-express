@@ -64,7 +64,6 @@ router.get('/', async (req, res) => {
       },
       filters: {
         status,
-        gameType,
         search
       }
     });
