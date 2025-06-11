@@ -243,18 +243,57 @@ const sseManager = new SSEConnectionManager();
 // Create Express app
 const app = express();
 
+//trust proxy for railway
+app.set('trust proxy', true);
+
 // Security and CORS middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Allow SSE connections
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
-app.use(cors({
-  origin: process.env.FRONTEND_ORIGINS ? process.env.FRONTEND_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:5173'],
-  credentials: true,
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Define allowed origins - include both production and development
+    const allowedOrigins = [
+      'https://pga-fantasy.trevspage.com',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173', // Add this explicitly since your logs show 127.0.0.1
+      'http://localhost:5174'  // Sometimes Vite uses different ports
+    ];
+    
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS: Blocked request from origin: ${origin}`);
+      callback(new Error(`CORS: Origin ${origin} not allowed`), false);
+    }
+  },
+  credentials: false, // Important: SSE doesn't typically need credentials
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']
-}));
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'Cache-Control',
+    'Accept',
+    'Origin',
+    'X-Requested-With'
+  ],
+  // Critical for SSE: ensure preflight requests are handled correctly
+  optionsSuccessStatus: 200,
+  // Expose headers that the browser might need
+  exposedHeaders: ['Content-Type', 'Cache-Control', 'Connection']
+};
+
+// Apply CORS with our enhanced configuration
+app.use(cors(corsOptions));
+
+// Add explicit preflight handling for SSE endpoints
+app.options('/stream/*', cors(corsOptions));
 
 // Rate limiting to prevent abuse
 const limiter = rateLimit({
@@ -355,6 +394,87 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     connections: sseManager.getStats(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
+app.get('/stream/test', (req, res) => {
+  console.log('Test SSE connection requested');
+  console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+  
+  // Set CORS headers first
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://pga-fantasy.trevspage.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Accept, Cache-Control');
+  
+  console.log('Response headers set, sending initial message');
+  
+  // Send immediate response to establish connection
+  res.write('data: {"type":"test_init","message":"Test connection established","timestamp":"' + new Date().toISOString() + '"}\n\n');
+  
+  // Send a few test messages with delays
+  let messageCount = 0;
+  const testInterval = setInterval(() => {
+    messageCount++;
+    const testMessage = {
+      type: 'test_message',
+      count: messageCount,
+      message: `Test message ${messageCount}`,
+      timestamp: new Date().toISOString()
+    };
+    
+    try {
+      res.write(`data: ${JSON.stringify(testMessage)}\n\n`);
+      console.log(`Sent test message ${messageCount}`);
+      
+      // Stop after 5 messages
+      if (messageCount >= 5) {
+        clearInterval(testInterval);
+        res.write('data: {"type":"test_complete","message":"Test completed successfully"}\n\n');
+        console.log('Test sequence completed');
+      }
+    } catch (error) {
+      console.error('Error sending test message:', error);
+      clearInterval(testInterval);
+    }
+  }, 2000); // Send a message every 2 seconds
+  
+  // Clean up when client disconnects
+  req.on('close', () => {
+    console.log('Test SSE connection closed by client');
+    clearInterval(testInterval);
+  });
+  
+  req.on('error', (error) => {
+    console.error('Test SSE connection error:', error);
+    clearInterval(testInterval);
+  });
+});
+
+// Add a simple HTTP endpoint to test basic connectivity
+app.get('/api/connection-test', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'Basic HTTP connection working',
+    timestamp: new Date().toISOString(),
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent'],
+    forwardedFor: req.headers['x-forwarded-for'],
+    realIp: req.ip
   });
 });
 
