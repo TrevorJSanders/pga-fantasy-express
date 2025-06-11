@@ -11,12 +11,13 @@
     "build": "echo 'No build step required'"
   },
   "keywords": [
-    "sse",
-    "server-sent-events",
-    "golf",
-    "real-time",
+    "express",
     "mongodb",
-    "express"
+    "sse",
+    "real-time",
+    "tournaments",
+    "golf",
+    "change-streams"
   ],
   "author": "Trevor Sanders",
   "license": "ISC",
