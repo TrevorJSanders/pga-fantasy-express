@@ -1,93 +1,174 @@
 const express = require('express');
-const { getTournaments, addSSEClient, removeSSEClient } = require('../utils/sseHelpers');
-
+const { 
+  getTournaments, 
+  getLeaderboards,
+  addSSEClient, 
+  removeSSEClient,
+  getConnectionStats,
+  sendSSEMessage
+} = require('../utils/sseHelpers');
 const router = express.Router();
 
-// SSE endpoint for tournament updates
-router.get('/tournaments', async (req, res) => {
-  // Create a unique client ID for this connection
-  const clientId = Date.now() + Math.random();
+/**
+ * Generate a unique client ID with more entropy
+ */
+const generateClientId = () => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+/**
+ * Common SSE setup function to reduce code duplication
+ */
+const setupSSEConnection = (res, clientId) => {
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // Disable Nginx buffering
+    'Transfer-Encoding': 'chunked', // Ensure chunked encoding
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
   
-  console.log(`New SSE client connected: ${clientId}`);
-  
-  // Add this client to our active connections list
-  addSSEClient(clientId, res);
-  
-  // Send initial connection confirmation
-  res.write(`data: ${JSON.stringify({ 
-    type: 'connection', 
-    message: 'Connected to tournament updates',
-    clientId: clientId
-  })}\n\n`);
-  
-  try {
-    // Send initial tournament data immediately upon connection
-    const tournaments = await getTournaments();
-    res.write(`data: ${JSON.stringify({ 
-      type: 'initial_data', 
-      data: tournaments 
-    })}\n\n`);
-  } catch (error) {
-    console.error('Error fetching initial tournament data:', error);
-    res.write(`data: ${JSON.stringify({ 
-      type: 'error', 
-      message: 'Failed to fetch initial data' 
-    })}\n\n`);
+  if (res.socket) {
+    res.socket.setTimeout(0);
+    res.socket.setNoDelay(true);
+    res.socket.setKeepAlive(true);
   }
   
-  // Handle client disconnect
-  req.on('close', () => {
+  sendSSEMessage(res, {
+    type: 'connection',
+    message: 'SSE connection established',
+    clientId: clientId,
+    timestamp: new Date().toISOString()
+  });
+  
+  res.on('close', () => {
     console.log(`SSE client disconnected: ${clientId}`);
     removeSSEClient(clientId);
   });
   
-  // Handle connection errors
-  req.on('error', (error) => {
-    console.error(`SSE client error for ${clientId}:`, error);
+  res.on('error', (error) => {
+    console.error(`SSE connection error for ${clientId}:`, error);
     removeSSEClient(clientId);
   });
+};
+
+/**
+ * Setup heartbeat and cleanup for SSE connections
+ */
+const setupSSEHeartbeat = (req, res, clientId) => {
+  console.log('Heartbeat SSE initializing for client:', clientId);
   
   // Keep the connection alive with periodic heartbeat
   const heartbeatInterval = setInterval(() => {
-    if (res.writableEnded) {
+    if (res.writableEnded || res.destroyed) {
       clearInterval(heartbeatInterval);
       return;
     }
-    
-    // Send a heartbeat to keep the connection alive
-    res.write(`data: ${JSON.stringify({ 
-      type: 'heartbeat', 
-      timestamp: new Date().toISOString() 
-    })}\n\n`);
+   
+    console.log('Sending heartbeat for client:', clientId);
+    sendSSEMessage(res, {
+      type: 'heartbeat',
+      timestamp: new Date().toISOString()
+    });
   }, 30000); // Send heartbeat every 30 seconds
-  
-  // Clean up interval when client disconnects
-  req.on('close', () => {
+
+  // Handle client disconnect
+  const cleanup = () => {
+    console.log(`SSE client disconnected: ${clientId}`);
     clearInterval(heartbeatInterval);
+    removeSSEClient(clientId);
+  };
+
+  req.on('close', cleanup);
+  req.on('error', (error) => {
+    console.error(`SSE client error for ${clientId}:`, error);
+    cleanup();
   });
+
+  return heartbeatInterval;
+};
+
+// SSE endpoint for tournament updates
+router.get('/tournaments', async (req, res) => {
+  const clientId = generateClientId();
+  console.log(`New tournament SSE client connected: ${clientId}`);
+ 
+  setupSSEConnection(res, clientId);
+  addSSEClient(clientId, res, 'tournament');
+ 
+  try {
+    const tournaments = await getTournaments();
+    
+    // Send the data with padding and flushing
+    sendSSEMessage(res, {
+      type: 'initial_data',
+      dataType: 'tournaments',
+      data: tournaments,
+      count: Array.isArray(tournaments) ? tournaments.length : 1,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching initial tournament data:', error);
+    sendSSEMessage(res, {
+      type: 'error',
+      message: 'Failed to fetch initial tournament data',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+ 
+  setupSSEHeartbeat(req, res, clientId);
 });
 
-// Optional: Endpoint to manually trigger a broadcast (useful for testing)
-router.post('/broadcast', (req, res) => {
-  const { message, data } = req.body;
-  
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required for broadcast' });
+// SSE endpoint for leaderboard updates
+router.get('/leaderboards', async (req, res) => {
+  const clientId = generateClientId();
+  const { tournamentId, status, limit = 1 } = req.query;
+  console.log(`New leaderboard SSE client connected: ${clientId}`, { tournamentId, status });
+ 
+  setupSSEConnection(res, clientId);
+  // 🔧 FIXED: Changed from 'leaderboards' to 'leaderboard' to match broadcasting logic
+  addSSEClient(clientId, res, 'leaderboard', tournamentId);
+ 
+  try {
+    // Build query filters from request
+    const filters = {};
+    if (tournamentId) filters.tournamentId = tournamentId;
+    if (status) filters.status = status;
+    
+    // Send initial leaderboard data immediately upon connection
+    const leaderboards = await getLeaderboards(filters, parseInt(limit));
+    sendSSEMessage(res, {
+      type: 'initial_data',
+      dataType: 'leaderboards',
+      data: leaderboards,
+      count: leaderboards.length,
+      filters: filters,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching initial leaderboard data:', error);
+    sendSSEMessage(res, {
+      type: 'error',
+      message: 'Failed to fetch initial leaderboard data',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
-  
-  // This would use your broadcast helper function
-  const broadcastData = {
-    type: 'manual_broadcast',
-    message,
-    data: data || null,
+ 
+  setupSSEHeartbeat(req, res, clientId);
+});
+
+// Get connection statistics
+router.get('/stats', (req, res) => {
+  const stats = getConnectionStats();
+  res.json({
+    success: true,
+    data: stats,
     timestamp: new Date().toISOString()
-  };
-  
-  // Import the broadcast function when needed
-  const { broadcastToAllClients } = require('../utils/sseHelpers');
-  broadcastToAllClients(broadcastData);
-  
-  res.json({ success: true, broadcasted: broadcastData });
+  });
 });
 
 module.exports = router;

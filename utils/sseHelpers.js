@@ -1,16 +1,14 @@
-const Tournament = require('../models/Tournament'); // You'll need to create this model
+const Tournament = require('../models/Tournament');
+const Leaderboard = require('../models/Leaderboard');
 
 // Store active SSE connections in memory
-// In production, you might want to use Redis for scaling across multiple server instances
 const activeClients = new Map();
 
-/**
- * Add a new SSE client to our active connections
- * This function maintains a list of all connected clients so we can broadcast to them
- */
-const addSSEClient = (clientId, response) => {
+const addSSEClient = (clientId, response, type, tournamentId = null) => {
   activeClients.set(clientId, {
     response,
+    type,
+    tournamentId,
     connectedAt: new Date(),
     lastHeartbeat: new Date()
   });
@@ -18,10 +16,6 @@ const addSSEClient = (clientId, response) => {
   console.log(`Active SSE clients: ${activeClients.size}`);
 };
 
-/**
- * Remove an SSE client from our active connections
- * This happens when a client disconnects or encounters an error
- */
 const removeSSEClient = (clientId) => {
   const removed = activeClients.delete(clientId);
   if (removed) {
@@ -29,47 +23,81 @@ const removeSSEClient = (clientId) => {
   }
 };
 
+const sendSSEMessage = (res, data) => {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  res.write(payload);
+};
+
 /**
- * Broadcast data to all connected SSE clients
- * This is the core function that sends updates to your React frontend
+ * Broadcast to clients watching specific tournaments
  */
-const broadcastToAllClients = (data) => {
-  console.log(`Broadcasting to ${activeClients.size} clients:`, data.type);
-  
-  // Create a copy of client IDs to avoid issues if the Map changes during iteration
+const broadcastToTournamentClients = (data) => {
   const clientIds = Array.from(activeClients.keys());
+  let successfulBroadcasts = 0;
   
   clientIds.forEach(clientId => {
     const client = activeClients.get(clientId);
     
-    if (!client || client.response.writableEnded) {
-      // Client connection is closed, remove it
+    // Only broadcast to clients watching tournaments or this specific tournament
+    if (client.type !== 'tournament') {
+      return;
+    }
+    
+    if (!client || client.response.writableEnded || client.response.destroyed) {
       activeClients.delete(clientId);
       return;
     }
     
     try {
-      // Format the data as an SSE message
-      // The double newline (\n\n) is required by the SSE specification
-      client.response.write(`data: ${JSON.stringify(data)}\n\n`);
+      sendSSEMessage(client.response, data);
       client.lastHeartbeat = new Date();
+      successfulBroadcasts++;
     } catch (error) {
-      console.error(`Error broadcasting to client ${clientId}:`, error);
-      // Remove problematic client
+      console.error(`Error broadcasting to tournament client ${clientId}:`, error);
       activeClients.delete(clientId);
     }
   });
+  
+  console.log(`Broadcasted tournament update to ${successfulBroadcasts} clients`);
 };
 
 /**
- * Fetch tournament data from the database
- * This provides the initial data when clients first connect
+ * Broadcast to clients watching leaderboards
  */
+const broadcastToLeaderboardClients = (tournamentId, data) => {
+  const clientIds = Array.from(activeClients.keys());
+  let successfulBroadcasts = 0;
+  
+  clientIds.forEach(clientId => {
+    const client = activeClients.get(clientId);
+    
+    // Only broadcast to clients watching leaderboards or this specific leaderboard
+    if (client.type !== 'leaderboard' || client.tournamentId !== tournamentId) {
+      return;
+    }
+    
+    if (!client || client.response.writableEnded || client.response.destroyed) {
+      activeClients.delete(clientId);
+      return;
+    }
+    
+    try {
+      sendSSEMessage(client.response, data);
+      client.lastHeartbeat = new Date();
+      successfulBroadcasts++;
+    } catch (error) {
+      console.error(`Error broadcasting to leaderboard client ${clientId}:`, error);
+      activeClients.delete(clientId);
+    }
+  });
+  
+  console.log(`Broadcasted leaderboard update to ${successfulBroadcasts} clients for leaderboard ${tournamentId}`);
+};
+
 const getTournaments = async () => {
   try {
-    // Fetch all tournaments, sorted by creation date (newest first)
-    // You might want to add pagination or filtering here based on your needs
     const tournaments = await Tournament.find({}).sort({ createdAt: -1 }).lean();
+    
     return tournaments;
   } catch (error) {
     console.error('Error fetching tournaments:', error);
@@ -77,66 +105,175 @@ const getTournaments = async () => {
   }
 };
 
+const getLeaderboards = async (filters = {}, limit = 1) => {
+  try {
+    const leaderboards = await Leaderboard.find(filters)
+      .sort({ lastUpdated: -1 })
+      .limit(limit)
+      .lean();
+    return leaderboards;
+  } catch (error) {
+    console.error('Error fetching leaderboards:', error);
+    throw error;
+  }
+};
+
 /**
- * Handle tournament changes from MongoDB Change Streams
- * This function processes database changes and broadcasts them to connected clients
+ * Handle tournament changes from the new change stream format
+ * Now receives processed change data with only changed fields
  */
-const handleTournamentChange = (changeEvent) => {
-  console.log('Tournament change detected:', changeEvent.operationType);
+const handleTournamentChange = (changeData) => {
+  console.log('Tournament change detected:', changeData.operationType);
   
-  // Extract relevant information from the change event
+  // Create broadcast data based on the new change stream format
   let broadcastData = {
     type: 'tournament_update',
-    operation: changeEvent.operationType,
-    timestamp: new Date().toISOString()
+    operation: changeData.operationType,
+    tournamentId: changeData.tournamentId,
+    timestamp: changeData.timestamp
   };
   
   // Handle different types of database operations
-  switch (changeEvent.operationType) {
+  switch (changeData.operationType) {
     case 'insert':
-      broadcastData.data = changeEvent.fullDocument;
+      broadcastData.data = changeData.changedFields; // Full document for inserts
       broadcastData.message = 'New tournament created';
       break;
       
     case 'update':
-      broadcastData.data = changeEvent.fullDocument;
-      broadcastData.documentId = changeEvent.documentKey._id;
-      broadcastData.updatedFields = changeEvent.updateDescription?.updatedFields;
+      // Only send the changed fields, not the full document
+      broadcastData.changedFields = changeData.changedFields;
+      broadcastData.removedFields = changeData.removedFields;
+      broadcastData.metadata = changeData.metadata;
       broadcastData.message = 'Tournament updated';
+      
+      // Log what specifically changed for debugging
+      const changedFieldNames = Object.keys(changeData.changedFields || {});
+      console.log(`Tournament ${changeData.documentId} updated fields:`, changedFieldNames);
+      
+      // Skip broadcasting if no significant changes
+      if (!isSignificantChange(changeData.changedFields)) {
+        console.log('Skipping broadcast for insignificant tournament change');
+        return;
+      }
       break;
       
     case 'delete':
-      broadcastData.documentId = changeEvent.documentKey._id;
+      broadcastData.deletedId = changeData.documentId;
       broadcastData.message = 'Tournament deleted';
       break;
       
     case 'replace':
-      broadcastData.data = changeEvent.fullDocument;
-      broadcastData.documentId = changeEvent.documentKey._id;
+      broadcastData.data = changeData.changedFields; // Full document for replace
       broadcastData.message = 'Tournament replaced';
       break;
       
     default:
-      console.log('Unhandled change type:', changeEvent.operationType);
-      return; // Don't broadcast unknown change types
+      console.log('Unhandled tournament change type:', changeData.operationType);
+      return;
   }
   
-  // Broadcast the change to all connected clients
-  broadcastToAllClients(broadcastData);
+  broadcastToTournamentClients(broadcastData);
 };
 
 /**
- * Get statistics about active SSE connections
- * Useful for monitoring and debugging
+ * Handle leaderboard changes from the new change stream format
  */
+const handleLeaderboardChange = (changeData) => {
+  console.log('Leaderboard change detected:', changeData.operationType);
+  
+  // Create broadcast data
+  let broadcastData = {
+    type: 'leaderboard_update',
+    operation: changeData.operationType,
+    tournamentId: changeData.tournamentId,
+    timestamp: changeData.timestamp
+  };
+  
+  // Handle different types of database operations
+  switch (changeData.operationType) {
+    case 'insert':
+      broadcastData.data = changeData.changedFields; // Full document for inserts
+      broadcastData.message = 'New leaderboard created';
+      break;
+      
+    case 'update':
+      // Only send the changed fields, not the full document
+      broadcastData.changedFields = changeData.changedFields;
+      broadcastData.removedFields = changeData.removedFields;
+      broadcastData.metadata = changeData.metadata;
+      broadcastData.message = 'Leaderboard updated';
+      
+      // Log what specifically changed for debugging
+      const changedFieldNames = Object.keys(changeData.changedFields || {});
+      console.log(`Leaderboard ${changeData.documentId} updated fields:`, changedFieldNames);
+      console.log(`Tournament ID: ${broadcastData.tournamentId}`);
+      
+      // Skip broadcasting if no significant changes
+      if (!isSignificantChange(changeData.changedFields)) {
+        console.log('Skipping broadcast for insignificant leaderboard change');
+        return;
+      }
+      break;
+      
+    case 'delete':
+      broadcastData.deletedId = changeData.documentId;
+      broadcastData.message = 'Leaderboard deleted';
+      break;
+      
+    case 'replace':
+      broadcastData.data = changeData.changedFields; // Full document for replace
+      broadcastData.message = 'Leaderboard replaced';
+      break;
+      
+    default:
+      console.log('Unhandled leaderboard change type:', changeData.operationType);
+      return;
+  }
+  
+  broadcastToLeaderboardClients(broadcastData.tournamentId, broadcastData);
+};
+
+/**
+ * Helper function to determine if a change is significant enough to broadcast
+ * Filters out insignificant field changes to reduce noise
+ */
+const isSignificantChange = (changedFields) => {
+  if (!changedFields || Object.keys(changedFields).length === 0) {
+    return false;
+  }
+  
+  // Define fields that we don't consider significant for broadcasting
+  // Add or remove fields based on your application's needs
+  const insignificantFields = [
+    'lastAccessed',
+    'viewCount', 
+    '__v',
+    'lastViewed',
+    'accessCount',
+    'metadata.lastPing',
+    'stats.views'
+  ];
+  
+  const significantFields = Object.keys(changedFields).filter(
+    field => !insignificantFields.some(insignificant => 
+      field === insignificant || field.startsWith(insignificant + '.')
+    )
+  );
+  
+  return significantFields.length > 0;
+};
+
 const getConnectionStats = () => {
   return {
     activeConnections: activeClients.size,
     connections: Array.from(activeClients.entries()).map(([id, client]) => ({
       clientId: id,
+      type: client.type,
       connectedAt: client.connectedAt,
       lastHeartbeat: client.lastHeartbeat,
-      connectionDuration: Date.now() - client.connectedAt.getTime()
+      connectionDuration: Date.now() - client.connectedAt.getTime(),
+      isConnected: !client.response.writableEnded && !client.response.destroyed
     }))
   };
 };
@@ -144,8 +281,13 @@ const getConnectionStats = () => {
 module.exports = {
   addSSEClient,
   removeSSEClient,
-  broadcastToAllClients,
+  broadcastToTournamentClients,
+  broadcastToLeaderboardClients,
   getTournaments,
+  getLeaderboards,
   handleTournamentChange,
-  getConnectionStats
+  handleLeaderboardChange,
+  getConnectionStats,
+  sendSSEMessage,
+  isSignificantChange
 };

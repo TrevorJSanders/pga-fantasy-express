@@ -1,28 +1,28 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
+require('dotenv').config();
 
 const { configureHeaders } = require('./config/headers');
 const { configureCors } = require('./config/cors');
 const { initializeChangeStreams } = require('./utils/changeStreams');
+
 const tournamentRoutes = require('./routes/tournaments');
+const leaderboardRoutes = require('./routes/leaderboards');
 const sseRoutes = require('./routes/sse');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// Replace with your actual MongoDB connection string
 const MONGODB_URI = process.env.MONGODB_URI;
-const API_ENDPOINT_URI = process.env.API_ENDPOINT_URI;
 
-// Database connection
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+//GLOBAL MIDDLEWARE
+configureCors(app);
+configureHeaders(app);
+app.use(express.json());
+
+//DB CONNECTION
+mongoose.connect(MONGODB_URI)
 .then(() => {
   console.log('Connected to MongoDB');
-  // Initialize change streams after successful DB connection
   initializeChangeStreams();
 })
 .catch((error) => {
@@ -30,39 +30,60 @@ mongoose.connect(MONGODB_URI, {
   process.exit(1);
 });
 
-// Middleware configuration
-configureCors(app);
-configureHeaders(app);
-app.use(express.json());
-
-// Routes
-app.use('/api/tournaments', tournamentRoutes);
+app.options('/api/sse/*');
 app.use('/api/sse', sseRoutes);
+
+//ALL OTHER ROUTES
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/leaderboards', leaderboardRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'Server is running', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'Server is running', 
+    timestamp: new Date().toISOString(),
+    activeSSEConnections: require('./utils/sseHelpers').getConnectionStats().activeConnections
+  });
 });
 
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
-  res.status(500).json({ 
+  
+  res.status(500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
   });
 });
 
 // Graceful shutdown handling
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+const gracefulShutdown = () => {
+  console.log('Shutting down gracefully...');
+  
+  // Close MongoDB connection
   mongoose.connection.close(() => {
     console.log('MongoDB connection closed');
     process.exit(0);
   });
+  
+  // Force exit after 10 seconds
+  setTimeout(() => {
+    console.error('Forced shutdown');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`SSE endpoint available at: ${API_ENDPOINT_URI}:${PORT}/api/sse/tournaments`);
-});
+// Increase server timeout for SSE connections
+server.timeout = 0; // Disable timeout for SSE
+server.keepAliveTimeout = 65000; // Keep connections alive
+server.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
+
+module.exports = app;

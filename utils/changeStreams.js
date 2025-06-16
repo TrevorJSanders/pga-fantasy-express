@@ -1,76 +1,105 @@
+//changeStream.js
 const mongoose = require('mongoose');
-const { handleTournamentChange } = require('./sseHelpers');
+const { handleTournamentChange, handleLeaderboardChange } = require('./sseHelpers');
 
 /**
  * Initialize MongoDB Change Streams to watch for database changes
- * 
+ *
  * Change Streams are a powerful MongoDB feature that lets us watch for real-time
  * changes to collections without polling the database. This is much more efficient
  * than repeatedly querying to check for updates.
  */
 const initializeChangeStreams = () => {
   try {
-    // Get reference to the tournaments collection
-    // Make sure this matches your actual collection name
+    // Get reference to the collections
     const db = mongoose.connection.db;
     const tournamentsCollection = db.collection('tournaments');
-    
-    // Configure the change stream options
+    const leaderboardsCollection = db.collection('tournament_leaderboards');
+   
+    // Configure the change stream options for field-level changes
     const changeStreamOptions = {
-      // Include the full document in change events (not just the changes)
+      // Don't include full document - we'll extract only changed fields
       fullDocument: 'updateLookup',
       
       // Only watch for specific operations we care about
-      // This filters out operations we don't need to broadcast
       operationType: { $in: ['insert', 'update', 'replace', 'delete'] }
     };
+   
+    console.log('Starting MongoDB Change Streams...');
+   
+    // Create change stream for tournaments
+    const tournamentsChangeStream = tournamentsCollection.watch([], changeStreamOptions);
     
-    console.log('Starting MongoDB Change Stream for tournaments collection...');
-    
-    // Create the change stream
-    const changeStream = tournamentsCollection.watch([], changeStreamOptions);
-    
-    // Listen for change events
-    changeStream.on('change', (changeEvent) => {
+    // Create change stream for tournament leaderboards
+    const leaderboardsChangeStream = leaderboardsCollection.watch([], changeStreamOptions);
+   
+    // Listen for tournament change events
+    tournamentsChangeStream.on('change', (changeEvent) => {
       try {
-        console.log('Change stream event received:', {
+        console.log('Leaderboard change stream event received:', {
           operation: changeEvent.operationType,
           documentId: changeEvent.documentKey?._id,
           timestamp: new Date().toISOString()
         });
-        
-        // Process the change and broadcast to SSE clients
-        handleTournamentChange(changeEvent);
-        
+       
+        // Extract only changed fields and process
+        const processedChange = extractChangedFields(changeEvent, 'tournament');
+        handleTournamentChange(processedChange);
+       
       } catch (error) {
-        console.error('Error processing change stream event:', error);
+        console.error('Error processing tournament change stream event:', error);
       }
     });
-    
-    // Handle change stream errors
-    changeStream.on('error', (error) => {
-      console.error('Change stream error:', error);
-      
-      // Attempt to restart the change stream after a delay
-      setTimeout(() => {
-        console.log('Attempting to restart change stream...');
-        initializeChangeStreams();
-      }, 5000);
+
+    // Listen for leaderboard change events
+    leaderboardsChangeStream.on('change', (changeEvent) => {
+      try {
+        console.log('Leaderboard change stream event received:', {
+          operation: changeEvent.operationType,
+          documentId: changeEvent.documentKey?._id,
+          tournamentId: changeEvent.fullDocument?.id, // ✅ confirm here
+          timestamp: new Date().toISOString()
+        });
+       
+        // Extract only changed fields and process
+        const processedChange = extractChangedFields(changeEvent, 'leaderboard');
+        handleLeaderboardChange(processedChange);
+       
+      } catch (error) {
+        console.error('Error processing leaderboard change stream event:', error);
+      }
     });
-    
+   
+    // Handle change stream errors for tournaments
+    tournamentsChangeStream.on('error', (error) => {
+      console.error('Tournaments change stream error:', error);
+      restartChangeStream('tournaments');
+    });
+
+    // Handle change stream errors for leaderboards
+    leaderboardsChangeStream.on('error', (error) => {
+      console.error('Leaderboards change stream error:', error);
+      restartChangeStream('leaderboards');
+    });
+   
     // Handle change stream close events
-    changeStream.on('close', () => {
-      console.log('Change stream closed');
+    tournamentsChangeStream.on('close', () => {
+      console.log('Tournaments change stream closed');
     });
-    
-    // Store the change stream reference for cleanup
-    process.changeStream = changeStream;
-    
-    console.log('MongoDB Change Stream initialized successfully');
-    
+
+    leaderboardsChangeStream.on('close', () => {
+      console.log('Leaderboards change stream closed');
+    });
+   
+    // Store the change stream references for cleanup
+    process.tournamentsChangeStream = tournamentsChangeStream;
+    process.leaderboardsChangeStream = leaderboardsChangeStream;
+   
+    console.log('MongoDB Change Streams initialized successfully');
+   
   } catch (error) {
     console.error('Failed to initialize change streams:', error);
-    
+   
     // Retry after a delay
     setTimeout(() => {
       console.log('Retrying change stream initialization...');
@@ -80,17 +109,96 @@ const initializeChangeStreams = () => {
 };
 
 /**
+ * Extract only the changed fields from a change event
+ * This reduces the payload size and only sends what actually changed
+ */
+const extractChangedFields = (changeEvent, collectionType) => {
+  const { operationType, documentKey, fullDocument } = changeEvent;
+
+  const tournamentId = fullDocument?.id || null;
+  console.log('operationType ' + operationType);
+  console.log('documentKey ' + documentKey);
+  console.log('fullDocument ' + fullDocument);
+
+  let changedData = {
+    operationType,
+    documentId: documentKey._id,  // objectid in MongoDB
+    tournamentId,
+    collectionType,
+    timestamp: new Date().toISOString()
+  };
+
+  switch (operationType) {
+    case 'insert':
+    case 'replace':
+      changedData.fullDocument = fullDocument;
+      changedData.changedFields = fullDocument;
+      break;
+
+    case 'update':
+      const updatedFields = changeEvent.updateDescription?.updatedFields || {};
+      const removedFields = changeEvent.updateDescription?.removedFields || [];
+
+      changedData.changedFields = updatedFields;
+      changedData.removedFields = removedFields;
+    case 'delete':
+      changedData.deletedId = documentKey._id;
+      break;
+
+    default:
+      console.warn(`Unhandled operation type: ${operationType}`);
+  }
+
+  return changedData;
+};
+
+/**
+ * Restart a specific change stream after an error
+ */
+const restartChangeStream = (streamType) => {
+  setTimeout(() => {
+    console.log(`Attempting to restart ${streamType} change stream...`);
+    
+    // Close existing stream if it exists
+    if (streamType === 'tournaments' && process.tournamentsChangeStream) {
+      process.tournamentsChangeStream.close();
+    } else if (streamType === 'leaderboards' && process.leaderboardsChangeStream) {
+      process.leaderboardsChangeStream.close();
+    }
+    
+    // Restart all streams
+    initializeChangeStreams();
+  }, 5000);
+};
+
+/**
  * Clean up change streams when shutting down
  * This ensures we properly close database connections
  */
 const closeChangeStreams = async () => {
-  if (process.changeStream) {
-    try {
-      await process.changeStream.close();
-      console.log('Change stream closed successfully');
-    } catch (error) {
-      console.error('Error closing change stream:', error);
-    }
+  const closePromises = [];
+  
+  if (process.tournamentsChangeStream) {
+    closePromises.push(
+      process.tournamentsChangeStream.close()
+        .then(() => console.log('Tournaments change stream closed successfully'))
+        .catch(error => console.error('Error closing tournaments change stream:', error))
+    );
+  }
+  
+  if (process.leaderboardsChangeStream) {
+    closePromises.push(
+      process.leaderboardsChangeStream.close()
+        .then(() => console.log('Leaderboards change stream closed successfully'))
+        .catch(error => console.error('Error closing leaderboards change stream:', error))
+    );
+  }
+  
+  try {
+    await Promise.all(closePromises);
+    console.log('All change streams closed successfully');
+  } catch (error) {
+    console.error('Error closing some change streams:', error);
   }
 };
 
@@ -100,5 +208,6 @@ process.on('SIGINT', closeChangeStreams);
 
 module.exports = {
   initializeChangeStreams,
-  closeChangeStreams
+  closeChangeStreams,
+  extractChangedFields // Export for testing purposes
 };
