@@ -37,6 +37,24 @@ app.use('/api/sse', sseRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leaderboards', leaderboardRoutes);
 
+app.get('/sse-test', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write('event: connected\ndata: first-ping\n\n');
+  const interval = setInterval(() => {
+    res.write('data: heartbeatt ' + Date.now() + '\n\n');
+  }, 10000);
+  res.on('close', () => {
+    clearInterval(interval);
+  })
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
