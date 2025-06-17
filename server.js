@@ -1,5 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const http = require('http');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 const { configureHeaders } = require('./config/headers');
@@ -97,6 +99,25 @@ process.on('SIGINT', gracefulShutdown);
 const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+
+const wss = new WebSocket.Server({ server });
+wss.on('connection', (ws) => {
+  console.log('🔌 Client connected');
+  ws.send('👋 Welcome to WebSocket test!');
+  const interval = setInterval(() => {
+    ws.send(`🫀 Heartbeat: ${Date.now()}`);
+  }, 5000);
+
+  ws.on('close', () => {
+    console.log('❌ Client disconnected');
+    clearInterval(interval);
+  });
+});
+
+app.get('/ws-test', (req, res) => {
+  res.send('WebSocket test server is running.');
 });
 
 // Increase server timeout for SSE connections
