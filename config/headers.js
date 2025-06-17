@@ -5,7 +5,13 @@ const configureHeaders = (app) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
-    
+
+    // CSP to allow WebSocket connection
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; connect-src 'self' wss://pga-fantasy-express-production.up.railway.app https://pga-fantasy-express-production.up.railway.app"
+    );
+
     // Cache control for regular API requests
     if (!req.path.includes('/sse/')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

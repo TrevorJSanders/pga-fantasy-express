@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const http = require('http');
 const WebSocket = require('ws');
 require('dotenv').config();
 
