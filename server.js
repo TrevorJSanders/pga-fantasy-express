@@ -124,10 +124,9 @@ wss.on('connection', (ws, req) => {
   });
 
   let isAlive = true;
-  let reconnectAttempts = 0;
   
   // iOS-specific ping interval (longer for iOS)
-  const pingInterval = isIOS ? 15000 : 7000; // 15s for iOS, 7s for others
+  const pingInterval = isIOS ? 15000 : 1500; // 15s for iOS, 7s for others
   
   const sendMessage = (data) => {
     if (ws.readyState === WebSocket.OPEN) {
