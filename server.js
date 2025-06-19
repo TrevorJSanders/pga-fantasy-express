@@ -1,12 +1,12 @@
 const express = require('express');
-const https = require('https');
+const http = require('http'); // ✅ use http, not https
 const WebSocket = require('ws');
 const cors = require('cors');
 
 const app = express();
 app.use(cors());
 
-const server = https.createServer(app);
+const server = http.createServer(app); // ✅ just use http
 const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
@@ -18,7 +18,7 @@ wss.on('connection', (ws) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(`🫀 Heartbeat: ${Date.now()}`);
     }
-  }, 3000); // Lower interval for Safari
+  }, 3000);
 
   ws.on('close', () => {
     console.log('❌ Client disconnected');
