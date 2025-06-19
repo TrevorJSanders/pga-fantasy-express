@@ -16,6 +16,12 @@ app.use((req, res, next) => {
   res.setHeader('Sec-WebSocket-Extensions', 'x-webkit-deflate-frame');
   next();
 });
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Sec-WebSocket-Extensions', 'x-webkit-deflate-frame');
+  next();
+});
 
 const server = http.createServer(app);
 
