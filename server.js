@@ -23,9 +23,11 @@ db.once('open', () => {
   const changeStream = db.collection('tournaments').watch();
 
   changeStream.on('change', (change) => {
-    console.log('📣 Change detected:', change);
-    // emit to WebSocket subscribers
-    pubsub.emit('update', change);
+  console.log('📣 Change detected:', change);
+
+  pubsub.emit('update', {
+    type: 'update',
+    data: change,
   });
 });
 
