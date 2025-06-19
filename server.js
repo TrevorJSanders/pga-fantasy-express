@@ -11,18 +11,27 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('🔌 Client connected');
+  ws.isAlive = true;
+
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
+  const interval = setInterval(() => {
+    if (ws.isAlive === false) {
+      console.log('💀 Terminating inactive connection');
+      return ws.terminate();
+    }
+
+    ws.isAlive = false;
+    ws.ping(); // 🔁 Ping client — if no pong, we'll terminate on next loop
+  }, 15000); // 15s is a good default
 
   ws.send('👋 Welcome to WebSocket!');
 
-  const heartbeat = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(`🫀 Heartbeat: ${Date.now()}`);
-    }
-  }, 3000);
-
   ws.on('close', () => {
     console.log('❌ Client disconnected');
-    clearInterval(heartbeat);
+    clearInterval(interval);
   });
 });
 
