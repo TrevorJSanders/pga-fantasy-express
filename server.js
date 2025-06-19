@@ -15,23 +15,26 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const pubsub = new EventEmitter();
 
-// MONGODB CHANGE STREAM SETUP
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+// MONGODB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 const db = mongoose.connection;
 
 db.once('open', () => {
   const changeStream = db.collection('tournaments').watch();
 
   changeStream.on('change', (change) => {
-  console.log('📣 Change detected:', change);
-
-  pubsub.emit('update', {
-    type: 'update',
-    data: change,
+    console.log('📣 Change detected:', change);
+    pubsub.emit('update', {
+      type: 'update',
+      data: change,
+    });
   });
 });
 
-// CLIENTS
+// WEBSOCKETS
 wss.on('connection', (ws) => {
   console.log('🔌 WebSocket connected');
 
@@ -41,10 +44,8 @@ wss.on('connection', (ws) => {
     }
   };
 
-  // send initial data
-  sendUpdate({ type: 'init', data: { message: 'Welcome!' } });
+  ws.send(JSON.stringify({ type: 'init', data: { message: 'Welcome!' } }));
 
-  // subscribe to changes
   pubsub.on('update', sendUpdate);
 
   ws.on('close', () => {
@@ -55,8 +56,13 @@ wss.on('connection', (ws) => {
 
 // POLLING ENDPOINT
 app.get('/api/leaderboard', async (req, res) => {
-  const data = await db.collection('tournaments').find({}).toArray();
-  res.json(data);
+  try {
+    const data = await db.collection('tournaments').find({}).toArray();
+    res.json(data);
+  } catch (err) {
+    console.error('Failed to fetch leaderboard:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
