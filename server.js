@@ -12,10 +12,14 @@ app.use(express.json());
 app.set('trust proxy', true); // <-- required for Railway's reverse proxy
 
 const server = http.createServer(app);
+server.on('upgrade', (req, socket, head) => {
+  socket.setKeepAlive(true);
+});
 
 // Enhanced WebSocket server configuration
 const wss = new WebSocket.Server({ 
   server,
+  path: '/ws',
   perMessageDeflate: false, // ✅ iOS fix: compression off
   clientTracking: true,
   maxPayload: 1024 * 1024 // 1MB
@@ -45,6 +49,10 @@ db.once('open', () => {
 wss.on('connection', (ws, req) => {
   const ua = req.headers['user-agent'] || '';
   console.log('🔌 WebSocket connected from:', ua.substring(0, 60));
+
+  const ip = req.socket.remoteAddress;
+  const isKeepAlive = req.socket.keepAlive;
+  console.log('📡 IP:', ip, 'Keep-Alive:', isKeepAlive);
 
   let isAlive = true;
 
