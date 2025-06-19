@@ -1,45 +1,63 @@
 const express = require('express');
-const http = require('http'); // ✅ use http, not https
+const http = require('http');
 const WebSocket = require('ws');
+const mongoose = require('mongoose');
 const cors = require('cors');
+const EventEmitter = require('events');
+
+require('dotenv').config();
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
-const server = http.createServer(app); // ✅ just use http
+const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+const pubsub = new EventEmitter();
 
-wss.on('connection', (ws) => {
-  console.log('🔌 Client connected');
-  ws.isAlive = true;
+// MONGODB CHANGE STREAM SETUP
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+const db = mongoose.connection;
 
-  ws.on('pong', () => {
-    ws.isAlive = true;
-  });
+db.once('open', () => {
+  const changeStream = db.collection('tournaments').watch();
 
-  const interval = setInterval(() => {
-    if (ws.isAlive === false) {
-      console.log('💀 Terminating inactive connection');
-      return ws.terminate();
-    }
-
-    ws.isAlive = false;
-    ws.ping(); // 🔁 Ping client — if no pong, we'll terminate on next loop
-  }, 15000); // 15s is a good default
-
-  ws.send('👋 Welcome to WebSocket!');
-
-  ws.on('close', () => {
-    console.log('❌ Client disconnected');
-    clearInterval(interval);
+  changeStream.on('change', (change) => {
+    console.log('📣 Change detected:', change);
+    // emit to WebSocket subscribers
+    pubsub.emit('update', change);
   });
 });
 
-app.get('/', (req, res) => {
-  res.send('✅ WebSocket server is running.');
+// CLIENTS
+wss.on('connection', (ws) => {
+  console.log('🔌 WebSocket connected');
+
+  const sendUpdate = (data) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(data));
+    }
+  };
+
+  // send initial data
+  sendUpdate({ type: 'init', data: { message: 'Welcome!' } });
+
+  // subscribe to changes
+  pubsub.on('update', sendUpdate);
+
+  ws.on('close', () => {
+    console.log('❌ WebSocket disconnected');
+    pubsub.removeListener('update', sendUpdate);
+  });
+});
+
+// POLLING ENDPOINT
+app.get('/api/leaderboard', async (req, res) => {
+  const data = await db.collection('tournaments').find({}).toArray();
+  res.json(data);
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server listening on Port:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
