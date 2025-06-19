@@ -12,8 +12,13 @@ app.use(express.json());
 app.set('trust proxy', true); // <-- required for Railway's reverse proxy
 
 const server = http.createServer(app);
+
+server.on('connection', (socket) => {
+  socket.setKeepAlive(true, 10000); // enable TCP keep-alive every 10 seconds
+});
+
 server.on('upgrade', (req, socket, head) => {
-  socket.setKeepAlive(true);
+  socket.setKeepAlive(true, 10000); // 10s interval
 });
 
 // Enhanced WebSocket server configuration
@@ -99,24 +104,23 @@ wss.on('connection', (ws, req) => {
     console.error('💥 WebSocket error:', err.message);
   });
 
-  // Heartbeat (safari-safe interval)
   const heartbeat = setInterval(() => {
-    if (!isAlive) {
-      console.log('💀 Dead socket detected — terminating');
-      ws.terminate();
-      return;
-    }
+  if (!isAlive) {
+    console.log('💀 Connection dead — terminating');
+    ws.terminate();
+    return;
+  }
 
-    isAlive = false;
+  isAlive = false;
 
-    if (ws.readyState === WebSocket.OPEN) {
-      try {
-        ws.ping();
-      } catch (err) {
-        console.error('❌ Ping failed:', err.message);
-      }
+  if (ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.ping(); // trigger pong response
+    } catch (err) {
+      console.error('❌ Ping error:', err.message);
     }
-  }, 15000); // ✅ shorter interval for iOS
+  }
+}, 7000); // every 7 seconds — more aggressive for mobile networks
 
   ws.on('pong', () => {
     isAlive = true;
