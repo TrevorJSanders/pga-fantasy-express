@@ -9,16 +9,16 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.set('trust proxy', true); // <-- required for Railway's reverse proxy
 
 const server = http.createServer(app);
 
 // Enhanced WebSocket server configuration
 const wss = new WebSocket.Server({ 
   server,
-  // Add these options for better iOS Safari compatibility
-  perMessageDeflate: false, // Disable compression which can cause issues on mobile
+  perMessageDeflate: false, // ✅ iOS fix: compression off
   clientTracking: true,
-  maxPayload: 1024 * 1024 // 1MB limit
+  maxPayload: 1024 * 1024 // 1MB
 });
 
 const pubsub = new EventEmitter();
@@ -43,86 +43,86 @@ db.once('open', () => {
 
 // Enhanced WebSocket handling
 wss.on('connection', (ws, req) => {
-  console.log('🔌 WebSocket connected from:', req.headers['user-agent']?.substring(0, 50));
-  
-  // Track connection state
+  const ua = req.headers['user-agent'] || '';
+  console.log('🔌 WebSocket connected from:', ua.substring(0, 60));
+
   let isAlive = true;
-  
-  // Send initial welcome message
+
   const sendMessage = (data) => {
     if (ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify(data));
-      } catch (error) {
-        console.error('❌ Error sending message:', error);
+      } catch (err) {
+        console.error('❌ Send error:', err);
       }
     }
   };
 
-  // Send welcome message
+  // Initial handshake
   sendMessage({ type: 'init', data: { message: 'Welcome!' } });
 
-  // Handle incoming messages (including pings)
+  // Incoming message handler
   ws.on('message', (data) => {
     try {
-      const message = JSON.parse(data.toString());
-      console.log('📥 Received message:', message);
-      
-      if (message.type === 'ping') {
+      const msg = JSON.parse(data.toString());
+      console.log('📥 Message:', msg);
+
+      if (msg.type === 'ping') {
         sendMessage({ type: 'pong', timestamp: Date.now() });
       }
-    } catch (error) {
-      console.error('❌ Error parsing message:', error);
+    } catch (err) {
+      console.error('❌ Invalid message:', err);
     }
   });
 
-  // Handle pings for keep-alive
-  ws.on('ping', () => {
-    console.log('🏓 Received ping');
-    ws.pong();
-  });
-
-  ws.on('pong', () => {
-    console.log('🏓 Received pong');
-    isAlive = true;
-  });
-
-  // Listen for updates
+  // Listen to pubsub updates
   const sendUpdate = (data) => sendMessage(data);
   pubsub.on('update', sendUpdate);
 
-  // Handle close event
+  // Close and cleanup
   ws.on('close', (code, reason) => {
-    console.log(`❌ WebSocket disconnected - Code: ${code}, Reason: ${reason}`);
+    console.log(`❌ WebSocket closed - Code: ${code}, Reason: ${reason.toString() || 'none'}`);
     pubsub.removeListener('update', sendUpdate);
+    clearInterval(heartbeat);
   });
 
-  // Handle errors
-  ws.on('error', (error) => {
-    console.error('💥 WebSocket error:', error);
+  // Error logging
+  ws.on('error', (err) => {
+    console.error('💥 WebSocket error:', err.message);
   });
 
-  // Set up heartbeat to detect broken connections
+  // Heartbeat (safari-safe interval)
   const heartbeat = setInterval(() => {
     if (!isAlive) {
-      console.log('💔 Connection appears dead, terminating');
+      console.log('💀 Dead socket detected — terminating');
       ws.terminate();
       return;
     }
-    
-    isAlive = false;
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.ping();
-    }
-  }, 30000); // Ping every 30 seconds
 
-  // Clean up heartbeat on close
-  ws.on('close', () => {
-    clearInterval(heartbeat);
+    isAlive = false;
+
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.ping();
+      } catch (err) {
+        console.error('❌ Ping failed:', err.message);
+      }
+    }
+  }, 15000); // ✅ shorter interval for iOS
+
+  ws.on('pong', () => {
+    isAlive = true;
+    console.log('🏓 Pong received');
+  });
+
+  // Respond to manual pings
+  ws.on('ping', () => {
+    ws.pong();
+    console.log('🏓 Ping received from client');
   });
 });
 
-// Add WebSocket connection count endpoint for debugging
+// WebSocket status endpoint
 app.get('/api/ws-status', (req, res) => {
   res.json({
     connectedClients: wss.clients.size,
@@ -130,23 +130,23 @@ app.get('/api/ws-status', (req, res) => {
   });
 });
 
-// POLLING ENDPOINT
+// Leaderboard polling fallback
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const data = await db.collection('tournaments').find({}).toArray();
     res.json(data);
   } catch (err) {
-    console.error('Failed to fetch leaderboard:', err);
+    console.error('Leaderboard error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Health check endpoint
+// Healthcheck
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    wsClients: wss.clients.size 
+    wsClients: wss.clients.size
   });
 });
 
@@ -157,7 +157,7 @@ server.listen(PORT, () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully');
+  console.log('🛑 SIGTERM received');
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
