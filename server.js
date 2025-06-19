@@ -10,6 +10,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.set('trust proxy', true); // <-- required for Railway's reverse proxy
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Sec-WebSocket-Extensions', 'x-webkit-deflate-frame');
+  next();
+});
 
 const server = http.createServer(app);
 
@@ -18,7 +24,8 @@ server.on('connection', (socket) => {
 });
 
 server.on('upgrade', (req, socket, head) => {
-  socket.setKeepAlive(true, 10000); // 10s interval
+  console.log('⬆️  HTTP upgrade requested');
+  socket.setKeepAlive(true, 10000);
 });
 
 // Enhanced WebSocket server configuration
