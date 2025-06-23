@@ -1,92 +1,87 @@
 const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
 const mongoose = require('mongoose');
-const cors = require('cors');
-const EventEmitter = require('events');
+const http = require('http');
 require('dotenv').config();
 
+const { configureCors } = require('./config/cors');
+const { configureHeaders } = require('./config/headers');
+const { initializeChangeStreams } = require('./utils/changeStreams');
+const { setupWebSocketServer } = require('./utils/wsServer');
+const { closeWebSocketServer } = require('./utils/wsServer');
+
+const tournamentRoutes = require('./routes/tournaments');
+const leaderboardRoutes = require('./routes/leaderboards');
+const streamFallbackRoutes = require('./routes/streamFallback');
+
 const app = express();
-app.use(cors());
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
+
+// GLOBAL MIDDLEWARE
+configureCors(app);
+configureHeaders(app);
 app.use(express.json());
 
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server, path: '/ws', perMessageDeflate: false });
-const pubsub = new EventEmitter();
-
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI, {});
-
-const db = mongoose.connection;
-db.once('open', () => {
-  const changeStream = db.collection('tournaments').watch();
-  changeStream.on('change', (change) => {
-    pubsub.emit('update', { type: 'update', data: change });
-  });
-});
-
-// WebSocket handling for non-iOS clients only
-wss.on('connection', (ws, req) => {
-  const ua = req.headers['user-agent'] || '';
-  const isIOS = /iPhone|iPad|iPod/.test(ua);
-  if (isIOS) return ws.close(); // Close connection for iOS clients
-
-  const sendMessage = (data) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(data));
-    }
-  };
-
-  sendMessage({ type: 'init', data: { message: 'Welcome!' } });
-
-  ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data);
-      if (msg.type === 'ping') {
-        sendMessage({ type: 'pong', timestamp: Date.now() });
-      }
-    } catch (e) {}
+// MONGO CONNECTION
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('✅ Connected to MongoDB');
+    initializeChangeStreams();
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
   });
 
-  const sendUpdate = (data) => sendMessage(data);
-  pubsub.on('update', sendUpdate);
-
-  ws.on('close', () => {
-    pubsub.removeListener('update', sendUpdate);
-  });
-});
-
-// Polling endpoint for iOS clients
-app.get('/api/leaderboard', async (req, res) => {
-  try {
-    const since = req.query.since;
-    const latestDoc = await db.collection('tournaments')
-      .find()
-      .sort({ lastUpdated: -1 })
-      .limit(1)
-      .toArray();
-
-    const latestUpdate = latestDoc[0]?.lastUpdated;
-    if (since && new Date(since) >= new Date(latestUpdate)) {
-      return res.status(204).send(); // No update
-    }
-
-    const data = await db.collection('tournaments').find({}).toArray();
-    res.json({ lastUpdated: latestUpdate, leaderboard: data });
-  } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// ROUTES
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/leaderboards', leaderboardRoutes);
+app.use('/api/stream', streamFallbackRoutes); // Fallback polling
 
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    timestamp: new Date().toISOString(),
-    wsClients: wss.clients.size,
+    timestamp: new Date().toISOString()
   });
 });
 
-const PORT = process.env.PORT || 3000;
+// ERROR HANDLING
+app.use((error, req, res, next) => {
+  console.error('Server error:', error);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+  });
+});
+
+// WEBSOCKETS
+setupWebSocketServer(server);
+
+// START SERVER
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌱 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
+
+// SHUTDOWN SERVER
+const gracefulShutdown = () => {
+  console.log('\n🛑 Shutting down server...');
+
+  server.close(() => {
+    console.log('🧹 HTTP server closed');
+  });
+
+  closeWebSocketServer();
+
+  mongoose.connection.close(false).then(() => {
+    console.log('🔌 MongoDB connection closed');
+    process.exit(0);
+  });
+
+  ws.on('error', (err) => {
+    console.error('💥 WS Error:', err);
+  });
+};
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);

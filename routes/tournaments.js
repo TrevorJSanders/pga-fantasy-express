@@ -1,6 +1,5 @@
 const express = require('express');
 const Tournament = require('../models/Tournament');
-const { getConnectionStats } = require('../utils/sseHelpers');
 
 const router = express.Router();
 
@@ -98,42 +97,6 @@ router.get('/:id', async (req, res) => {
     
     res.status(500).json({ 
       error: 'Failed to fetch tournament',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const [
-      totalTournaments,
-      upcomingTournaments,
-      ongoingTournaments,
-      completedTournaments
-    ] = await Promise.all([
-      Tournament.countDocuments({}),
-      Tournament.countDocuments({ status: 'upcoming' }),
-      Tournament.countDocuments({ status: 'ongoing' }),
-      Tournament.countDocuments({ status: 'completed' })
-    ]);
-    
-    // Get SSE connection statistics
-    const sseStats = getConnectionStats();
-    
-    res.json({
-      tournaments: {
-        total: totalTournaments,
-        upcoming: upcomingTournaments,
-        ongoing: ongoingTournaments,
-        completed: completedTournaments
-      },
-      realTimeConnections: sseStats
-    });
-    
-  } catch (error) {
-    console.error('Error fetching tournament stats:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch tournament statistics',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }

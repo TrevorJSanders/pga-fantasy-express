@@ -1,6 +1,5 @@
 const express = require('express');
 const Leaderboard = require('../models/Leaderboard');
-const { getConnectionStats } = require('../utils/sseHelpers');
 const router = express.Router();
 
 // Get all leaderboards with filtering, pagination, and search
@@ -226,85 +225,6 @@ router.get('/player/:playerId', async (req, res) => {
     console.error('Error fetching player leaderboard history:', error);
     res.status(500).json({
       error: 'Failed to fetch player history',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-// Get leaderboard statistics and overview
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const [
-      totalLeaderboards,
-      inProgressLeaderboards,
-      completedLeaderboards,
-      scheduledLeaderboards,
-      uniqueTournaments,
-      totalPlayers
-    ] = await Promise.all([
-      Leaderboard.countDocuments({}),
-      Leaderboard.countDocuments({ status: 'In Progress' }),
-      Leaderboard.countDocuments({ status: 'Completed' }),
-      Leaderboard.countDocuments({ status: 'Scheduled' }),
-      Leaderboard.distinct('tournamentId').then(ids => ids.length),
-      Leaderboard.aggregate([
-        { $unwind: '$leaderboard' },
-        { $group: { _id: '$leaderboard.id' } },
-        { $count: 'totalPlayers' }
-      ]).then(result => result[0]?.totalPlayers || 0)
-    ]);
-
-    // Get recent activity (last 24 hours)
-    const recentActivity = await Leaderboard.countDocuments({
-      lastUpdated: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-    });
-   
-    // Get SSE connection statistics
-    const sseStats = getConnectionStats();
-   
-    res.json({
-      leaderboards: {
-        total: totalLeaderboards,
-        inProgress: inProgressLeaderboards,
-        completed: completedLeaderboards,
-        scheduled: scheduledLeaderboards,
-        recentActivity
-      },
-      tournaments: {
-        withLeaderboards: uniqueTournaments
-      },
-      players: {
-        total: totalPlayers
-      },
-      realTimeConnections: sseStats
-    });
-   
-  } catch (error) {
-    console.error('Error fetching leaderboard stats:', error);
-    res.status(500).json({
-      error: 'Failed to fetch leaderboard statistics',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
-
-// Get tours and sports for filtering
-router.get('/meta/filters', async (req, res) => {
-  try {
-    const [tours, sports] = await Promise.all([
-      Leaderboard.distinct('tour').then(tours => tours.filter(Boolean)),
-      Leaderboard.distinct('sport').then(sports => sports.filter(Boolean))
-    ]);
-   
-    res.json({
-      tours: tours.sort(),
-      sports: sports.sort()
-    });
-   
-  } catch (error) {
-    console.error('Error fetching filter options:', error);
-    res.status(500).json({
-      error: 'Failed to fetch filter options',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }

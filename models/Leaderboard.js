@@ -32,7 +32,7 @@ const playerSchema = new mongoose.Schema({
 // Main leaderboard schema
 const leaderboardSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
-  tournamentId: { type: String, required: true, index: true },
+  tournamentId: { type: String, required: true },
   sport: String,
   tour: String,
   startDatetime: Date,
