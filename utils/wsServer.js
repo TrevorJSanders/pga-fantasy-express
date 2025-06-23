@@ -26,13 +26,14 @@ server.on('upgrade', (req, socket, head) => {
   });
 });
 
-  wss.on('connection', (ws, req) => {
+    wss.on('connection', (ws, req) => {
+  /*
     const ua = req.headers['user-agent'] || '';
     const isIOS = /iPhone|iPad|iPod/.test(ua);
     if (isIOS) {
       console.log('📱 iOS client detected, closing connection');
       return ws.close();
-    }
+    }*/
 
     activeClients.add(ws);
     console.log('🟢 WebSocket client connected');
