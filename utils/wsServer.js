@@ -27,13 +27,10 @@ server.on('upgrade', (req, socket, head) => {
 });
 
     wss.on('connection', (ws, req) => {
-  /*
     const ua = req.headers['user-agent'] || '';
     const isIOS = /iPhone|iPad|iPod/.test(ua);
-    if (isIOS) {
-      console.log('📱 iOS client detected, closing connection');
-      return ws.close();
-    }*/
+    console.log(`📡 New ${isIOS ? 'iOS' : 'non-iOS'} connection`);
+    const heartbeatInterval = isIOS ? 10000 : 30000;
 
     activeClients.add(ws);
     console.log('🟢 WebSocket client connected');
@@ -42,12 +39,12 @@ server.on('upgrade', (req, socket, head) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(safeStringify({ type: 'heartbeat', timestamp: Date.now() }));
       }
-    }, 30000);
+    }, heartbeatInterval);
 
     ws.on('message', (message) => {
       try {
           const str = typeof message === 'string' ? message : message.toString('utf8');
-          //console.log('📩 Received message:', str);
+          console.log('📩 Received message:', str);
           const data = JSON.parse(str);
 
           if (data.type === 'ping') {
