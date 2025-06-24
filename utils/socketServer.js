@@ -17,6 +17,12 @@ const setupSocketIOServer = (httpServer) => {
     });
 
   io.on('connection', (socket) => {
+    socket.emit('server_ready', {
+        message: 'connected',
+        pingInterval: 10000,
+        serverTime: Date.now(),
+    });
+
     const ua = socket.handshake.headers['user-agent'] || '';
     const isIOS = /iPhone|iPad|iPod/.test(ua);
     console.log(`\uD83D\uDCF1 New ${isIOS ? 'iOS' : 'non-iOS'} Socket.IO connection`);
@@ -65,12 +71,6 @@ const setupSocketIOServer = (httpServer) => {
     socket.on('disconnect', () => {
       pubsub.removeListener('tournamentChange', tournamentListener);
       pubsub.removeListener('leaderboardChange', leaderboardListener);
-    });
-
-    socket.emit('server_ready', {
-        message: 'connected',
-        pingInterval: 10000,
-        serverTime: Date.now(),
     });
   });
 };
