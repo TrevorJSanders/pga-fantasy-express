@@ -77,11 +77,8 @@ const gracefulShutdown = () => {
     console.log('🔌 MongoDB connection closed');
     process.exit(0);
   });
-
-  ws.on('error', (err) => {
-    console.error('💥 WS Error:', err);
-  });
 };
+
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);

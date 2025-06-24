@@ -62,32 +62,25 @@ const initializeChangeStreams = () => {
 };
 
 const extractChangedFields = (changeEvent, collectionType) => {
-  const { operationType, documentKey, fullDocument } = changeEvent;
+  const { operationType, fullDocument } = changeEvent;
+
   const tournamentId = fullDocument?.id || null;
 
   const changedData = {
+    type: `${collectionType}_update`,
     operationType,
-    documentId: documentKey._id,
     tournamentId,
     collectionType,
     timestamp: new Date().toISOString(),
   };
 
-  switch (operationType) {
-    case 'insert':
-    case 'replace':
-      changedData.fullDocument = fullDocument;
-      changedData.changedFields = fullDocument;
-      break;
-    case 'update':
-      changedData.changedFields = changeEvent.updateDescription?.updatedFields || {};
-      changedData.removedFields = changeEvent.updateDescription?.removedFields || [];
-      break;
-    case 'delete':
-      changedData.deletedId = documentKey._id;
-      break;
-    default:
-      console.warn(`Unhandled operation type: ${operationType}`);
+  if (operationType === 'insert' || operationType === 'replace') {
+    changedData.changedFields = fullDocument;
+  } else if (operationType === 'update') {
+    changedData.changedFields = changeEvent.updateDescription?.updatedFields || {};
+    changedData.removedFields = changeEvent.updateDescription?.removedFields || [];
+  } else if (operationType === 'delete') {
+    changedData.deletedId = tournamentId;
   }
 
   return changedData;
