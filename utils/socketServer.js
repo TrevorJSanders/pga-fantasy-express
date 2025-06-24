@@ -7,14 +7,14 @@ let io;
 const setupSocketIOServer = (httpServer) => {
   io = new Server(httpServer, {
     path: '/ws',
+    transports: ['websocket'],
     cors: {
         origin: process.env.FRONTEND_URI,
         methods: ['GET', 'POST']
     },
     pingInterval: 10000,
     pingTimeout: 5000,
-    transports: ['polling', 'websocket'],
-    });
+  });
 
   io.on('connection', (socket) => {
     socket.emit('server_ready', {
