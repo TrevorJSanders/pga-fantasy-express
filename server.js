@@ -6,8 +6,7 @@ require('dotenv').config();
 const { configureCors } = require('./config/cors');
 const { configureHeaders } = require('./config/headers');
 const { initializeChangeStreams } = require('./utils/changeStreams');
-const { setupWebSocketServer } = require('./utils/wsServer');
-const { closeWebSocketServer } = require('./utils/wsServer');
+const { setupSocketIOServer, closeSocketIOServer } = require('./utils/socketServer');
 
 const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
@@ -54,8 +53,8 @@ app.use((error, req, res, next) => {
   });
 });
 
-// WEBSOCKETS
-setupWebSocketServer(server);
+//SOCKET.IO
+setupSocketIOServer(server);
 
 // START SERVER
 server.listen(PORT, () => {
@@ -71,7 +70,7 @@ const gracefulShutdown = () => {
     console.log('🧹 HTTP server closed');
   });
 
-  closeWebSocketServer();
+  closeSocketIOServer();
 
   mongoose.connection.close(false).then(() => {
     console.log('🔌 MongoDB connection closed');
