@@ -82,3 +82,6 @@ const gracefulShutdown = () => {
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
+
