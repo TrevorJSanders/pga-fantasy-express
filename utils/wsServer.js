@@ -31,6 +31,7 @@ server.on('upgrade', (req, socket, head) => {
     const isIOS = /iPhone|iPad|iPod/.test(ua);
     console.log(`📡 New ${isIOS ? 'iOS' : 'non-iOS'} connection`);
     const heartbeatInterval = isIOS ? 10000 : 30000;
+    console.log(`Heartbeat Interval: ${heartbeatInterval}`);
 
     activeClients.add(ws);
     console.log('🟢 WebSocket client connected');
