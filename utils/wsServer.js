@@ -47,7 +47,7 @@ server.on('upgrade', (req, socket, head) => {
     ws.on('message', (message) => {
       try {
           const str = typeof message === 'string' ? message : message.toString('utf8');
-          console.log('📩 Received message:', str);
+          //console.log('📩 Received message:', str);
           const data = JSON.parse(str);
 
           if (data.type === 'ping') {
@@ -61,15 +61,20 @@ server.on('upgrade', (req, socket, head) => {
             // Send initial data here
             if (ws.subscriptions.entity === 'tournament') {
                 ws.send(safeStringify({ type: 'heartbeat', timestamp: Date.now() }));
-                const Tournament = require('../models/Tournament'); // or wherever your model lives
+                const Tournament = require('../models/Tournament');
 
-                Tournament.find({})
-                .then((docs) => {
-                    ws.send(safeStringify({ type: 'initial_data', data: docs }));
-                })
-                .catch((err) => {
-                    console.error('❌ Failed to send initial_data:', err.message);
-                });
+                Tournament.find({}, { _id: 0, __v: 0 })
+                    .lean()
+                    .then((docs) => {
+                        const cleaned = docs.map((t) => ({
+                        ...t,
+                        id: t.id || '',
+                        }));
+                        ws.send(safeStringify({ type: 'initial_data', data: cleaned }));
+                    })
+                    .catch((err) => {
+                        console.error('❌ Failed to send initial_data:', err.message);
+                    });
             }
           }
         } catch (err) {
@@ -81,9 +86,13 @@ server.on('upgrade', (req, socket, head) => {
       const subscriptions = ws.subscriptions || {};
 
       // Filter by tournamentId if subscribed
-      if (subscriptions.tournamentId && subscriptions.tournamentId !== data.tournamentId) {
+      if (
+        subscriptions.tournamentId &&
+        subscriptions.tournamentId !== '*' &&
+        subscriptions.tournamentId !== data.tournamentId
+      ) {
         return;
-      }
+        }
 
       try {
         if (ws.readyState === WebSocket.OPEN) {
