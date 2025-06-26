@@ -58,10 +58,9 @@ const setupSocketIOServer = (httpServer) => {
       serverTime: Date.now(),
     });
 
-    // 🔁 Start heartbeat every 8s
-    //const heartbeatInterval = setInterval(() => {
-    //  socket.emit('heartbeat', { ts: Date.now() });
-    //}, 8000);
+    socket.on('ping', (timestamp) => {
+        console.log(`[socket:${socket.id}] 🔁 Received manual ping at ${new Date(timestamp).toISOString()}`);
+    });
 
     socket.conn.on('upgrade', (transport) => {
       console.log(`🔄 Transport upgraded to ${transport.name}`);
