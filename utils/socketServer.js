@@ -49,16 +49,19 @@ const setupSocketIOServer = (httpServer) => {
 
   // Actual connection handler
   io.on('connection', (socket) => {
+    const startTime = Date.now();
     const ua = socket.handshake.headers['user-agent'] || '';
     const isIOS = /iPhone|iPad|iPod/.test(ua);
+
     console.log(`📡 Client connected (${socket.id}) — ${isIOS ? 'iOS' : 'Other'}`);
     console.log('   → Transport:', socket.conn.transport.name);
+    console.log(`   → Connected at: ${new Date(startTime).toISOString()}`);
 
-    socket.emit('server_ready', {
-      message: 'connected',
-      pingInterval: 10000,
-      serverTime: Date.now(),
-    });
+    //socket.emit('server_ready', {
+    //  message: 'connected',
+    //  pingInterval: 10000,
+    //  serverTime: Date.now(),
+    //});
 
     socket.conn.on('upgrade', (transport) => {
       console.log(`🔄 Transport upgraded to ${transport.name}`);
@@ -73,7 +76,7 @@ const setupSocketIOServer = (httpServer) => {
           await new Promise(res => setTimeout(res, 500)); // wait 500ms
           const Tournament = require('../models/Tournament');
           const docs = await Tournament.find({}, { _id: 0, __v: 0 }).lean();
-          socket.emit('initial_data', docs.map((t) => ({ ...t, id: t.id || '' })));
+          //socket.emit('initial_data', docs.map((t) => ({ ...t, id: t.id || '' })));
         } catch (err) {
           console.error(`[socket:${socket.id}] ❌ Failed to send initial_data:`, err.message);
         }
@@ -84,13 +87,15 @@ const setupSocketIOServer = (httpServer) => {
       const subs = socket.data.subscriptions || {};
       if (subs.tournamentId && subs.tournamentId !== '*' && subs.tournamentId !== data.tournamentId) return;
       console.log(`[socket:${socket.id}] 📤 Sending ${eventType} update`);
-      socket.emit(eventType, data);
+      //socket.emit(eventType, data);
     };
 
     pubsub.on('tournamentChange', sendUpdate('tournament_update'));
     pubsub.on('leaderboardChange', sendUpdate('leaderboard_update'));
 
     socket.on('disconnect', (reason) => {
+        const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.warn(`🔴 Disconnected (${socket.id}): ${reason} after ${durationSec}s`);
       console.log(`[socket:${socket.id}] 🔌 Disconnected: ${reason}`);
       pubsub.removeAllListeners('tournamentChange');
       pubsub.removeAllListeners('leaderboardChange');
