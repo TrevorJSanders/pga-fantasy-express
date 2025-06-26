@@ -14,6 +14,7 @@ const setupSocketIOServer = (httpServer) => {
     },
     pingInterval: 10000,
     pingTimeout: 25000,
+    allowEIO3: true,
     perMessageDeflate: false,
   });
 
@@ -69,6 +70,7 @@ const setupSocketIOServer = (httpServer) => {
 
       if (data.subscriptions?.entity === 'tournament') {
         try {
+          await new Promise(res => setTimeout(res, 500)); // wait 500ms
           const Tournament = require('../models/Tournament');
           const docs = await Tournament.find({}, { _id: 0, __v: 0 }).lean();
           socket.emit('initial_data', docs.map((t) => ({ ...t, id: t.id || '' })));
