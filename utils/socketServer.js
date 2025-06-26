@@ -20,7 +20,6 @@ const setupSocketIOServer = (httpServer) => {
   io.engine.on('initial_headers', (headers, req) => {
     console.log('[engine] 🧾 initial_headers from', req.socket.remoteAddress || req.headers['x-forwarded-for']);
     console.log('[engine] 🔎 Path:', req.url);
-    console.log('[engine] 🔎 Headers:', req.headers);
   });
 
   io.engine.on('connection_error', (err) => {
@@ -60,12 +59,21 @@ const setupSocketIOServer = (httpServer) => {
     });
 
     // 🔁 Start heartbeat every 8s
-    const heartbeatInterval = setInterval(() => {
-      socket.emit('heartbeat', { ts: Date.now() });
-    }, 8000);
+    //const heartbeatInterval = setInterval(() => {
+    //  socket.emit('heartbeat', { ts: Date.now() });
+    //}, 8000);
 
     socket.conn.on('upgrade', (transport) => {
       console.log(`🔄 Transport upgraded to ${transport.name}`);
+    });
+
+    socket.conn.on('packet', (packet) => {
+        if (packet.type === 'ping') {
+            console.log(`[socket:${socket.id}] 🔄 Ping received at ${new Date().toISOString()}`);
+        }
+        if (packet.type === 'pong') {
+            console.log(`[socket:${socket.id}] 🏓 Pong received at ${new Date().toISOString()}`);
+        }
     });
 
     socket.on('subscribe', async (data) => {
@@ -99,7 +107,7 @@ const setupSocketIOServer = (httpServer) => {
       console.warn(`🔴 Disconnected (${socket.id}): ${reason} after ${durationSec}s`);
       console.log(`[socket:${socket.id}] 🔌 Disconnected: ${reason}`);
 
-      clearInterval(heartbeatInterval); // ✅ Clean up heartbeat
+      //clearInterval(heartbeatInterval); // ✅ Clean up heartbeat
       pubsub.removeAllListeners('tournamentChange');
       pubsub.removeAllListeners('leaderboardChange');
     });
