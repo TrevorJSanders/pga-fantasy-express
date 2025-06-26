@@ -1,4 +1,3 @@
-// utils/socketServer.js
 const { Server } = require('socket.io');
 const { pubsub } = require('./changeStreams');
 
@@ -12,13 +11,12 @@ const setupSocketIOServer = (httpServer) => {
       origin: process.env.FRONTEND_URI,
       methods: ['GET', 'POST']
     },
-    pingInterval: 10000,
+    pingInterval: 5000,
     pingTimeout: 25000,
     allowEIO3: true,
     perMessageDeflate: false,
   });
 
-  // Capture Engine.IO handshake details
   io.engine.on('initial_headers', (headers, req) => {
     console.log('[engine] 🧾 initial_headers from', req.socket.remoteAddress || req.headers['x-forwarded-for']);
     console.log('[engine] 🔎 Path:', req.url);
@@ -37,7 +35,6 @@ const setupSocketIOServer = (httpServer) => {
     console.debug('[engine] 📦 Packet received:', packet.type, packet.nsp, packet.data);
   });
 
-  // Socket.IO-level middleware
   io.use((socket, next) => {
     const { headers } = socket.handshake;
     console.log('[io] 🔐 Incoming socket connection attempt');
@@ -47,7 +44,6 @@ const setupSocketIOServer = (httpServer) => {
     next();
   });
 
-  // Actual connection handler
   io.on('connection', (socket) => {
     const startTime = Date.now();
     const ua = socket.handshake.headers['user-agent'] || '';
@@ -57,11 +53,16 @@ const setupSocketIOServer = (httpServer) => {
     console.log('   → Transport:', socket.conn.transport.name);
     console.log(`   → Connected at: ${new Date(startTime).toISOString()}`);
 
-    //socket.emit('server_ready', {
-    //  message: 'connected',
-    //  pingInterval: 10000,
-    //  serverTime: Date.now(),
-    //});
+    socket.emit('server_ready', {
+      message: 'connected',
+      pingInterval: 10000,
+      serverTime: Date.now(),
+    });
+
+    // 🔁 Start heartbeat every 8s
+    const heartbeatInterval = setInterval(() => {
+      socket.emit('heartbeat', { ts: Date.now() });
+    }, 8000);
 
     socket.conn.on('upgrade', (transport) => {
       console.log(`🔄 Transport upgraded to ${transport.name}`);
@@ -73,10 +74,10 @@ const setupSocketIOServer = (httpServer) => {
 
       if (data.subscriptions?.entity === 'tournament') {
         try {
-          await new Promise(res => setTimeout(res, 500)); // wait 500ms
+          await new Promise(res => setTimeout(res, 500));
           const Tournament = require('../models/Tournament');
           const docs = await Tournament.find({}, { _id: 0, __v: 0 }).lean();
-          //socket.emit('initial_data', docs.map((t) => ({ ...t, id: t.id || '' })));
+          socket.emit('initial_data', docs.map((t) => ({ ...t, id: t.id || '' })));
         } catch (err) {
           console.error(`[socket:${socket.id}] ❌ Failed to send initial_data:`, err.message);
         }
@@ -87,22 +88,23 @@ const setupSocketIOServer = (httpServer) => {
       const subs = socket.data.subscriptions || {};
       if (subs.tournamentId && subs.tournamentId !== '*' && subs.tournamentId !== data.tournamentId) return;
       console.log(`[socket:${socket.id}] 📤 Sending ${eventType} update`);
-      //socket.emit(eventType, data);
+      socket.emit(eventType, data);
     };
 
     pubsub.on('tournamentChange', sendUpdate('tournament_update'));
     pubsub.on('leaderboardChange', sendUpdate('leaderboard_update'));
 
     socket.on('disconnect', (reason) => {
-        const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
-        console.warn(`🔴 Disconnected (${socket.id}): ${reason} after ${durationSec}s`);
+      const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.warn(`🔴 Disconnected (${socket.id}): ${reason} after ${durationSec}s`);
       console.log(`[socket:${socket.id}] 🔌 Disconnected: ${reason}`);
+
+      clearInterval(heartbeatInterval); // ✅ Clean up heartbeat
       pubsub.removeAllListeners('tournamentChange');
       pubsub.removeAllListeners('leaderboardChange');
     });
   });
 };
-
 
 const closeSocketIOServer = () => {
   if (io) {
