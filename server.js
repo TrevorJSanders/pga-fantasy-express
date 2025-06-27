@@ -10,7 +10,7 @@ const { setupSocketIOServer, closeSocketIOServer } = require('./utils/socketServ
 
 const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
-const streamFallbackRoutes = require('./routes/streamFallback');
+const pollingRoutes = require('./routes/polling');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,7 +35,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // ROUTES
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leaderboards', leaderboardRoutes);
-app.use('/api/stream', streamFallbackRoutes); // Fallback polling
+app.use('/api', pollingRoutes);
 
 app.get('/health', (req, res) => {
   res.json({

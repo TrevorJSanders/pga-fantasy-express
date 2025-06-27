@@ -1,3 +1,4 @@
+//tournaments.js
 const express = require('express');
 const Tournament = require('../models/Tournament');
 

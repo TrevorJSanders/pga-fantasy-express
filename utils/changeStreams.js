@@ -1,5 +1,7 @@
+//changeStreams.js
 const mongoose = require('mongoose');
 const EventEmitter = require('events');
+const { addChange } = require('./changeCache');
 
 const pubsub = new EventEmitter();
 
@@ -19,11 +21,10 @@ const initializeChangeStreams = () => {
     const leaderboardsChangeStream = leaderboardsCollection.watch([], changeStreamOptions);
 
     tournamentsChangeStream.on('change', (changeEvent) => {
-      //console.log('📡 Tournament change detected:', changeEvent);
       try {
         const processedChange = extractChangedFields(changeEvent, 'tournament');
-        //console.log(processedChange);
         pubsub.emit('tournamentChange', processedChange);
+        addChange('tournament', processedChange);
       } catch (error) {
         console.error('❌ Error in tournament change:', error);
       }
@@ -33,6 +34,7 @@ const initializeChangeStreams = () => {
       try {
         const processedChange = extractChangedFields(changeEvent, 'leaderboard');
         pubsub.emit('leaderboardChange', processedChange);
+        addChange('leaderboard', processedChange);
       } catch (error) {
         console.error('❌ Error in leaderboard change:', error);
       }
