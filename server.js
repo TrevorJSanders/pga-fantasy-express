@@ -12,6 +12,7 @@ const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
 const pollingRoutes = require('./routes/polling');
 const leaguesRoutes = require('./routes/leagues');
+const userRoutes = require('./routes/user');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,7 +38,8 @@ mongoose.connect(process.env.MONGODB_URI)
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leaderboards', leaderboardRoutes);
 app.use('/api', pollingRoutes);
-app.use("/api/leagues", leaguesRoutes);
+app.use('/api/leagues', leaguesRoutes);
+app.use('/api/user', userRoutes);
 
 app.get('/health', (req, res) => {
   res.json({

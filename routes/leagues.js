@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const League = require("../models/League");
-const { requireAuth } = require("../utils/requireAuth");
+const { requireAuth, syncUser } = require("../utils/requireAuth");
 
 
-router.get("/admin", requireAuth, async (req, res) => {
+router.get("/admin", requireAuth, syncUser, async (req, res) => {
   try {
     const userId = req.auth?.sub;
     if (!userId) return res.status(401).json({ error: "User not authenticated" });
@@ -16,7 +16,7 @@ router.get("/admin", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/:id", requireAuth, async (req, res) => {
+router.get("/:id", requireAuth, syncUser, async (req, res) => {
   try {
     const league = await League.findById(req.params.id);
 
@@ -35,7 +35,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, syncUser, async (req, res) => {
   try {
     const userId = req.auth.sub;
 
@@ -55,7 +55,7 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, syncUser, async (req, res) => {
   const league = await League.findById(req.params.id);
   if (!league || !league.adminUserIds.includes(req.auth.sub)) {
     return res.status(403).json({ error: "Forbidden" });
@@ -66,7 +66,7 @@ router.put("/:id", requireAuth, async (req, res) => {
   res.json(league);
 });
 
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, syncUser, async (req, res) => {
   const league = await League.findById(req.params.id);
   if (!league || !league.adminUserIds.includes(req.auth.sub)) {
     return res.status(403).json({ error: "Forbidden" });
