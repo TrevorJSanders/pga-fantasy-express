@@ -1,4 +1,3 @@
-// ✅ Cleaned-up version of routes/polling.js
 const express = require('express');
 const router = express.Router();
 const { getChangesSince } = require('../utils/changeCache');

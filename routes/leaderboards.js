@@ -3,7 +3,6 @@ const express = require('express');
 const Leaderboard = require('../models/Leaderboard');
 const router = express.Router();
 
-// Get all leaderboards with filtering, pagination, and search
 router.get('/', async (req, res) => {
   try {
     const {
@@ -18,7 +17,6 @@ router.get('/', async (req, res) => {
       search
     } = req.query;
    
-    // Build the query object based on provided filters
     let query = {};
    
     if (status) {
@@ -38,7 +36,6 @@ router.get('/', async (req, res) => {
     }
    
     if (search) {
-      // Search across multiple fields using MongoDB text search
       query.$or = [
         { name: new RegExp(search, 'i') },
         { location: new RegExp(search, 'i') },
@@ -48,27 +45,22 @@ router.get('/', async (req, res) => {
       ];
     }
    
-    // Calculate pagination
     const pageNumber = Math.max(1, parseInt(page));
-    const limitNumber = Math.min(100, Math.max(1, parseInt(limit))); // Cap at 100 items per page
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNumber - 1) * limitNumber;
    
-    // Determine sort order
     const sortDirection = sortOrder === 'desc' ? -1 : 1;
     const sortObject = { [sortBy]: sortDirection };
    
-    // Execute the query with pagination and sorting
     const leaderboards = await Leaderboard.find(query)
       .sort(sortObject)
       .skip(skip)
       .limit(limitNumber)
-      .lean(); // Use lean() for better performance
+      .lean();
    
-    // Get total count for pagination metadata
     const totalCount = await Leaderboard.countDocuments(query);
     const totalPages = Math.ceil(totalCount / limitNumber);
    
-    // Return the results with pagination metadata
     res.json({
       leaderboards,
       pagination: {
@@ -97,7 +89,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get a specific leaderboard by ID
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -105,7 +96,6 @@ router.get('/:id', async (req, res) => {
    
     let query = Leaderboard.findById(id);
     
-    // Option to exclude the full leaderboard array for performance
     if (includeFullLeaderboard === 'false') {
       query = query.select('-leaderboard');
     }
@@ -132,7 +122,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Get leaderboard by tournament ID (more commonly used endpoint)
 router.get('/tournament/:tournamentId', async (req, res) => {
   try {
     const { tournamentId } = req.params;
@@ -141,7 +130,6 @@ router.get('/tournament/:tournamentId', async (req, res) => {
     let query = { tournamentId };
     let leaderboardQuery = Leaderboard.find(query);
     
-    // Get the latest leaderboard for this tournament by default
     if (latest === 'true') {
       leaderboardQuery = leaderboardQuery.sort({ lastUpdated: -1 }).limit(1);
     } else {
@@ -154,7 +142,6 @@ router.get('/tournament/:tournamentId', async (req, res) => {
       return res.status(404).json({ error: 'No leaderboard found for this tournament' });
     }
    
-    // Return single leaderboard if latest=true, otherwise return array
     const result = latest === 'true' ? leaderboards[0] : leaderboards;
     
     res.json({ 
@@ -171,7 +158,6 @@ router.get('/tournament/:tournamentId', async (req, res) => {
   }
 });
 
-// Get player-specific data across leaderboards
 router.get('/player/:playerId', async (req, res) => {
   try {
     const { playerId } = req.params;
@@ -181,7 +167,6 @@ router.get('/player/:playerId', async (req, res) => {
     const limitNumber = Math.min(50, Math.max(1, parseInt(limit)));
     const skip = (pageNumber - 1) * limitNumber;
    
-    // Find leaderboards where this player appears
     const leaderboards = await Leaderboard.find({
       'leaderboard.id': playerId
     })
@@ -190,7 +175,6 @@ router.get('/player/:playerId', async (req, res) => {
     .limit(limitNumber)
     .lean();
    
-    // Extract player-specific data from each leaderboard
     const playerHistory = leaderboards.map(lb => {
       const playerData = lb.leaderboard.find(p => p.id === playerId);
       return {

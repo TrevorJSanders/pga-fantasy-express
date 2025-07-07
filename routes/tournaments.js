@@ -15,7 +15,6 @@ router.get('/', async (req, res) => {
       search 
     } = req.query;
     
-    // Build the query object based on provided filters
     let query = {};
     
     if (status) {
@@ -23,7 +22,6 @@ router.get('/', async (req, res) => {
     }
     
     if (search) {
-      // Search across multiple fields using MongoDB text search
       query.$or = [
         { name: new RegExp(search, 'i') },
         { location: new RegExp(search, 'i') },
@@ -31,27 +29,22 @@ router.get('/', async (req, res) => {
       ];
     }
     
-    // Calculate pagination
     const pageNumber = Math.max(1, parseInt(page));
-    const limitNumber = Math.min(100, Math.max(1, parseInt(limit))); // Cap at 100 items per page
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNumber - 1) * limitNumber;
     
-    // Determine sort order
     const sortDirection = sortOrder === 'desc' ? -1 : 1;
     const sortObject = { [sortBy]: sortDirection };
     
-    // Execute the query with pagination and sorting
     const tournaments = await Tournament.find(query)
       .sort(sortObject)
       .skip(skip)
       .limit(limitNumber)
-      .lean(); // Use lean() for better performance when you don't need Mongoose document methods
+      .lean();
     
-    // Get total count for pagination metadata
     const totalCount = await Tournament.countDocuments(query);
     const totalPages = Math.ceil(totalCount / limitNumber);
     
-    // Return the results with pagination metadata
     res.json({
       tournaments,
       pagination: {
