@@ -44,6 +44,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/invites', inviteRoutes);
 
 app.get('/health', (req, res) => {
+  console.log('✅ Health check successful');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString()
