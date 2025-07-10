@@ -12,7 +12,8 @@ const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
 const pollingRoutes = require('./routes/polling');
 const leaguesRoutes = require('./routes/leagues');
-const userRoutes = require('./routes/user');
+const userRoutes = require('./routes/users');
+const inviteRoutes = require('./routes/invites');
 
 const app = express();
 const server = http.createServer(app);
@@ -39,7 +40,8 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leaderboards', leaderboardRoutes);
 app.use('/api', pollingRoutes);
 app.use('/api/leagues', leaguesRoutes);
-app.use('/api/user', userRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/invites', inviteRoutes);
 
 app.get('/health', (req, res) => {
   res.json({

@@ -25,11 +25,9 @@ export async function syncUser(req, res, next) {
   [`${namespace}/email`]: email,
   [`${namespace}/picture`]: picture,
 } = req.auth;
-  console.log("Auth: ", req.auth);
 
   try {
     const existing = await User.findOne({ auth0Id: sub });
-    console.log("User exists: ", existing);
 
     if (!existing) {
       const user = await User.create({
@@ -39,7 +37,6 @@ export async function syncUser(req, res, next) {
         picture: picture,
       });
       req.user = user;
-      console.log("User created: ", user);
     } else {
       req.user = existing;
     }
