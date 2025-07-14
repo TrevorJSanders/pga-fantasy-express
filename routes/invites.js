@@ -32,7 +32,6 @@ router.post("/:id/invite", requireAuth, syncUser, async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const namespace = "https://pga-fantasy.trevspage.com";
   const email = req.auth[`${namespace}/email`];
-  console.log("fetching invites for user", email);
   try {
     const invites = await Invite.find({ email: email, status: "pending" });
     const leagueIds = invites.map(invite => invite.leagueId);
@@ -61,8 +60,6 @@ router.post("/:id/respond", requireAuth, syncUser, async (req, res) => {
   const userId = req.auth.sub;
   const leagueId = req.params.id;
   const { accept } = req.body;
-
-  console.log("responding to invite", leagueId, email, accept);
 
   const invite = await Invite.findOne({ leagueId, email, status: "pending" });
   if (!invite) {
