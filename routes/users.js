@@ -52,7 +52,7 @@ router.get("/lookup", requireAuth, syncUser, async (req, res) => {
 
   try {
     const user = await User.findOne({ auth0Id: id }).select(
-      "auth0Id name email customName"
+      "auth0Id name email customName picture customPicture"
     );
 
     res.json(user);
