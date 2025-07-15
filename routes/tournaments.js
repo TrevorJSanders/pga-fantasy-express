@@ -16,6 +16,8 @@ router.get('/', async (req, res) => {
     } = req.query;
     
     let query = {};
+
+    console.log("Query:", req.query);
     
     if (status) {
       query.status = status;
