@@ -1,6 +1,5 @@
 const { Server } = require('socket.io');
 const { pubsub } = require('./changeStreams');
-const Tournament = require('../models/Tournament');
 const Leaderboard = require('../models/Leaderboard');
 
 let io;
@@ -21,15 +20,6 @@ const setupSocketIOServer = (httpServer) => {
       const subs = data.subscriptions || {};
       socket.data.subscriptions = subs;
 
-      if (subs.entity === 'tournament') {
-        try {
-          const docs = await Tournament.find({}, { _id: 0, __v: 0 }).lean();
-          socket.emit('initial_data', docs.map((t) => ({ ...t, id: t.id || '' })));
-        } catch (err) {
-          console.error(`[socket:${socket.id}] Failed to send tournament initial_data:`, err.message);
-        }
-      }
-
       if (subs.entity === 'leaderboard' && subs.tournamentId) {
         try {
           const doc = await Leaderboard.findOne({ tournamentId: subs.tournamentId })
@@ -42,14 +32,6 @@ const setupSocketIOServer = (httpServer) => {
       }
     });
 
-    const tournamentHandler = (data) => {
-      const subs = socket.data.subscriptions || {};
-      if (subs.entity === 'tournament') {
-        if (subs.tournamentId && subs.tournamentId !== '*' && subs.tournamentId !== data.tournamentId) return;
-        socket.emit('tournament_update', data);
-      }
-    };
-
     const leaderboardHandler = (data) => {
       const subs = socket.data.subscriptions || {};
       if (subs.entity === 'leaderboard') {
@@ -58,14 +40,10 @@ const setupSocketIOServer = (httpServer) => {
       }
     };
 
-    pubsub.on('tournamentChange', tournamentHandler);
     pubsub.on('leaderboardChange', leaderboardHandler);
-
-    socketHandlers.push(['tournamentChange', tournamentHandler]);
     socketHandlers.push(['leaderboardChange', leaderboardHandler]);
 
     socket.on('disconnect', () => {
-      // Only remove this socket’s handlers
       for (const [event, handler] of socketHandlers) {
         pubsub.off(event, handler);
       }

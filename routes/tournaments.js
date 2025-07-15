@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
       status,
       limit = 50, 
       page = 1, 
-      sortBy = 'startDate',
+      sortBy = 'startDatetime',
       sortOrder = 'asc',
       search 
     } = req.query;
@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
     const skip = (pageNumber - 1) * limitNumber;
     
     const sortDirection = sortOrder === 'desc' ? -1 : 1;
-    const sortObject = { [sortBy]: sortDirection };
+    const sortObject = { [sortBy]: sortDirection, _id: 1 };
     
     const tournaments = await Tournament.find(query)
       .sort(sortObject)
@@ -80,7 +80,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Tournament not found' });
     }
     
-    res.json({ tournament });
+    res.json(tournament);
     
   } catch (error) {
     console.error('Error fetching tournament:', error);
