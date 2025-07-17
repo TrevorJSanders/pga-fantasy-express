@@ -6,47 +6,81 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { 
-      status,
-      limit = 50, 
-      page = 1, 
-      sortBy = 'startDatetime',
-      sortOrder = 'asc',
-      search 
+    const {
+      limit = 50,
+      page = 1,
+      search
     } = req.query;
-    
-    let query = {};
-    
-    if (status) {
-      query.status = status;
-    }
-    
-    if (search) {
-      query.$or = [
-        { name: new RegExp(search, 'i') },
-        { location: new RegExp(search, 'i') },
-        { course: new RegExp(search, 'i') }
-      ];
-    }
-    
+
     const pageNumber = Math.max(1, parseInt(page));
     const limitNumber = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNumber - 1) * limitNumber;
-    
-    const sortDirection = sortOrder === 'desc' ? -1 : 1;
-    const sortObject = { [sortBy]: sortDirection, _id: 1 };
-    
-    const tournaments = await Tournament.find(query)
-      .sort(sortObject)
-      .skip(skip)
-      .limit(limitNumber)
-      .lean();
-    
-    const totalCount = await Tournament.countDocuments(query);
+
+    const now = new Date();
+    const matchConditions = [];
+
+    if (search) {
+      matchConditions.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { location: { $regex: search, $options: 'i' } },
+          { course: { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+
+    const baseMatch = matchConditions.length ? { $and: matchConditions } : {};
+
+    const results = await Tournament.aggregate([
+      { $match: baseMatch },
+      {
+        $facet: {
+          inProgress: [
+            {
+              $match: {
+                startDatetime: { $lte: now },
+                endDatetime: { $gte: now }
+              }
+            },
+            { $sort: { startDatetime: -1, _id: 1 } }
+          ],
+          scheduled: [
+            {
+              $match: {
+                startDatetime: { $gt: now }
+              }
+            },
+            { $sort: { startDatetime: 1, _id: 1 } }
+          ],
+          completed: [
+            {
+              $match: {
+                endDatetime: { $lt: now }
+              }
+            },
+            { $sort: { startDatetime: -1, _id: 1 } }
+          ]
+        }
+      },
+      {
+        $project: {
+          allTournaments: {
+            $concatArrays: ['$inProgress', '$scheduled', '$completed']
+          }
+        }
+      },
+      { $unwind: '$allTournaments' },
+      { $replaceRoot: { newRoot: '$allTournaments' } },
+      { $skip: skip },
+      { $limit: limitNumber }
+    ]);
+
+    // Count total matching docs (needed for pagination)
+    const totalCount = await Tournament.countDocuments(baseMatch);
     const totalPages = Math.ceil(totalCount / limitNumber);
-    
+
     res.json({
-      tournaments,
+      tournaments: results,
       pagination: {
         currentPage: pageNumber,
         totalPages,
@@ -56,44 +90,20 @@ router.get('/', async (req, res) => {
         limit: limitNumber
       },
       filters: {
-        status,
         search
       }
     });
-    
   } catch (error) {
     console.error('Error fetching tournaments:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch tournaments',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message:
+        process.env.NODE_ENV === 'development'
+          ? error.message
+          : 'Internal server error'
     });
   }
 });
 
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const tournament = await Tournament.findById(id).lean();
-    
-    if (!tournament) {
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
-    res.json(tournament);
-    
-  } catch (error) {
-    console.error('Error fetching tournament:', error);
-    
-    if (error.name === 'CastError') {
-      return res.status(400).json({ error: 'Invalid tournament ID format' });
-    }
-    
-    res.status(500).json({ 
-      error: 'Failed to fetch tournament',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-});
 
 module.exports = router;

@@ -5,23 +5,25 @@ const router = express.Router();
 const { requireAuth, syncUser } = require("../utils/requireAuth");
 
 router.post("/:id/invite", requireAuth, syncUser, async (req, res) => {
-  const { email, userId } = req.body;
+  const { email } = req.body;
   const leagueId = req.params.id;
+
+  console.log(email, leagueId);
 
   const league = await League.findById(leagueId);
   if (!league || !league.adminUserIds.includes(req.auth.sub)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const existing = await Invite.findOne({ leagueId, $or: [{ email }, { userId }] });
+  const existing = await Invite.findOne({ leagueId, email });
   if (existing) {
+  console.log(email, leagueId);
     return res.status(400).json({ error: "Already invited" });
   }
 
   const invite = new Invite({
     leagueId,
     email,
-    userId,
     invitedBy: req.auth.sub,
   });
 
