@@ -14,6 +14,7 @@ const pollingRoutes = require('./routes/polling');
 const leaguesRoutes = require('./routes/leagues');
 const userRoutes = require('./routes/users');
 const inviteRoutes = require('./routes/invites');
+const playersRoutes = require("./routes/players");
 
 const app = express();
 const server = http.createServer(app);
@@ -42,6 +43,7 @@ app.use('/api', pollingRoutes);
 app.use('/api/leagues', leaguesRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/invites', inviteRoutes);
+app.use("/api/players", playersRoutes);
 
 app.get('/health', (req, res) => {
   console.log('✅ Health check successful');
