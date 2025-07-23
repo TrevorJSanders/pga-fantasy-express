@@ -27,11 +27,11 @@ export async function syncUser(req, res, next) {
 } = req.auth;
 
   try {
-    const existing = await User.findOne({ auth0Id: sub });
+    const existing = await User.findById(sub);
 
     if (!existing) {
       const user = await User.create({
-        auth0Id: sub,
+        _id: sub,
         name: name,
         email: email,
         picture: picture,

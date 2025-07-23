@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Round schema for individual round data
 const roundSchema = new mongoose.Schema({
   id: { type: String, required: true },
   scorecard: String,
@@ -10,16 +9,12 @@ const roundSchema = new mongoose.Schema({
   position: String,
   total: String,
   thru: String,
-  scores: {
-    type: String,
-    default: null
-  },
+  scores: { type: String, default: null },
   score: Number
 }, { _id: false });
 
-// Player schema for leaderboard entries
 const playerSchema = new mongoose.Schema({
-  id: { type: String, required: true },
+  id: { type: String, required: true }, // external player ID
   tournament: { type: String, required: true },
   player: { type: String, required: true },
   position: String,
@@ -29,10 +24,9 @@ const playerSchema = new mongoose.Schema({
   rounds: [roundSchema]
 }, { _id: false });
 
-// Main leaderboard schema
 const leaderboardSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  tournamentId: { type: String, required: true },
+  _id: { type: String, required: true }, // leaderboard id (could match tournamentId or be unique)
+  tournamentId: { type: String, ref: "Tournament", required: true }, // ref to tournament _id
   sport: String,
   tour: String,
   startDatetime: Date,
@@ -51,26 +45,24 @@ const leaderboardSchema = new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now },
   leaderboard: [playerSchema]
 }, {
-  timestamps: true,  // Automatically adds createdAt and updatedAt fields
-  versionKey: '__v', // Add version key for optimistic concurrency control
+  timestamps: true,
+  versionKey: false,
   toJSON: {
-    transform: function(doc, ret) {
-      // Convert _id to id for frontend convenience
+    virtuals: true,
+    transform: function (doc, ret) {
       ret.id = ret._id;
       delete ret._id;
-      delete ret.__v;
       return ret;
     }
   }
 });
 
-// Add indexes for better query performance
+// Indexes
 leaderboardSchema.index({ tournamentId: 1 });
 leaderboardSchema.index({ status: 1 });
 leaderboardSchema.index({ slug: 1 });
 leaderboardSchema.index({ lastUpdated: -1 });
 
-// Add a pre-save middleware to update lastUpdated
 leaderboardSchema.pre('save', function(next) {
   this.lastUpdated = new Date();
   next();

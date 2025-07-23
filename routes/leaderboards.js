@@ -1,8 +1,8 @@
-//leaderboards.js
 const express = require('express');
 const Leaderboard = require('../models/Leaderboard');
 const router = express.Router();
 
+// GET /leaderboards - paginated list
 router.get('/', async (req, res) => {
   try {
     const {
@@ -16,25 +16,14 @@ router.get('/', async (req, res) => {
       sortOrder = 'desc',
       search
     } = req.query;
-   
-    let query = {};
-   
-    if (status) {
-      query.status = status;
-    }
 
-    if (tournamentId) {
-      query.tournamentId = tournamentId;
-    }
+    const query = {};
 
-    if (tour) {
-      query.tour = tour;
-    }
+    if (status) query.status = status;
+    if (tournamentId) query.tournamentId = tournamentId;
+    if (tour) query.tour = tour;
+    if (sport) query.sport = sport;
 
-    if (sport) {
-      query.sport = sport;
-    }
-   
     if (search) {
       query.$or = [
         { name: new RegExp(search, 'i') },
@@ -44,23 +33,25 @@ router.get('/', async (req, res) => {
         { 'leaderboard.player': new RegExp(search, 'i') }
       ];
     }
-   
+
     const pageNumber = Math.max(1, parseInt(page));
     const limitNumber = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNumber - 1) * limitNumber;
-   
+
     const sortDirection = sortOrder === 'desc' ? -1 : 1;
     const sortObject = { [sortBy]: sortDirection };
-   
-    const leaderboards = await Leaderboard.find(query)
-      .sort(sortObject)
-      .skip(skip)
-      .limit(limitNumber)
-      .lean();
-   
-    const totalCount = await Leaderboard.countDocuments(query);
+
+    const [leaderboards, totalCount] = await Promise.all([
+      Leaderboard.find(query)
+        .sort(sortObject)
+        .skip(skip)
+        .limit(limitNumber)
+        .lean(),
+      Leaderboard.countDocuments(query)
+    ]);
+
     const totalPages = Math.ceil(totalCount / limitNumber);
-   
+
     res.json({
       leaderboards,
       pagination: {
@@ -79,7 +70,6 @@ router.get('/', async (req, res) => {
         search
       }
     });
-   
   } catch (error) {
     console.error('Error fetching leaderboards:', error);
     res.status(500).json({
@@ -89,32 +79,27 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /leaderboards/:id - single leaderboard (optionally hide leaderboard data)
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { includeFullLeaderboard = 'true' } = req.query;
-   
-    let query = Leaderboard.findById(id);
-    
-    if (includeFullLeaderboard === 'false') {
-      query = query.select('-leaderboard');
-    }
-    
+    const includeFullLeaderboard = req.query.includeFullLeaderboard !== 'false';
+
+    const query = Leaderboard.findById(id);
+    if (!includeFullLeaderboard) query.select({ leaderboard: 0 });
+
     const leaderboard = await query.lean();
-   
+
     if (!leaderboard) {
       return res.status(404).json({ error: 'Leaderboard not found' });
     }
-   
+
     res.json({ leaderboard });
-   
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
-   
     if (error.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid leaderboard ID format' });
     }
-   
     res.status(500).json({
       error: 'Failed to fetch leaderboard',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -122,33 +107,22 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /leaderboards/tournament/:tournamentId - get latest or all for a tournament
 router.get('/tournament/:tournamentId', async (req, res) => {
   try {
     const { tournamentId } = req.params;
-    const { latest = 'true' } = req.query;
-   
-    let query = { tournamentId };
-    let leaderboardQuery = Leaderboard.find(query);
-    
-    if (latest === 'true') {
-      leaderboardQuery = leaderboardQuery.sort({ lastUpdated: -1 }).limit(1);
-    } else {
-      leaderboardQuery = leaderboardQuery.sort({ lastUpdated: -1 });
-    }
-    
-    const leaderboards = await leaderboardQuery.lean();
-   
-    if (!leaderboards || leaderboards.length === 0) {
+    const latest = req.query.latest !== 'false';
+
+    let query = Leaderboard.find({ tournamentId }).sort({ lastUpdated: -1 });
+    if (latest) query = query.limit(1);
+
+    const results = await query.lean();
+    if (!results || results.length === 0) {
       return res.status(404).json({ error: 'No leaderboard found for this tournament' });
     }
-   
-    const result = latest === 'true' ? leaderboards[0] : leaderboards;
-    
-    res.json({ 
-      leaderboard: result,
-      isLatest: latest === 'true'
-    });
-   
+
+    const result = latest ? results[0] : results;
+    res.json({ leaderboard: result, isLatest: latest });
   } catch (error) {
     console.error('Error fetching leaderboard by tournament:', error);
     res.status(500).json({
@@ -158,23 +132,22 @@ router.get('/tournament/:tournamentId', async (req, res) => {
   }
 });
 
+// GET /leaderboards/player/:playerId - get leaderboard history for a player
 router.get('/player/:playerId', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const { limit = 10, page = 1 } = req.query;
-    
-    const pageNumber = Math.max(1, parseInt(page));
-    const limitNumber = Math.min(50, Math.max(1, parseInt(limit)));
-    const skip = (pageNumber - 1) * limitNumber;
-   
-    const leaderboards = await Leaderboard.find({
-      'leaderboard.id': playerId
-    })
-    .sort({ lastUpdated: -1 })
-    .skip(skip)
-    .limit(limitNumber)
-    .lean();
-   
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit ?? 10)));
+    const page = Math.max(1, parseInt(req.query.page ?? 1));
+    const skip = (page - 1) * limit;
+
+    const leaderboards = await Leaderboard.find({ 'leaderboard.id': playerId })
+      .sort({ lastUpdated: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalCount = await Leaderboard.countDocuments({ 'leaderboard.id': playerId });
+
     const playerHistory = leaderboards.map(lb => {
       const playerData = lb.leaderboard.find(p => p.id === playerId);
       return {
@@ -188,24 +161,19 @@ router.get('/player/:playerId', async (req, res) => {
         status: lb.status
       };
     });
-   
-    const totalCount = await Leaderboard.countDocuments({
-      'leaderboard.id': playerId
-    });
-   
+
     res.json({
       playerId,
       playerHistory,
       pagination: {
-        currentPage: pageNumber,
-        totalPages: Math.ceil(totalCount / limitNumber),
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
         totalCount,
-        hasNextPage: pageNumber < Math.ceil(totalCount / limitNumber),
-        hasPrevPage: pageNumber > 1,
-        limit: limitNumber
+        hasNextPage: page < Math.ceil(totalCount / limit),
+        hasPrevPage: page > 1,
+        limit
       }
     });
-   
   } catch (error) {
     console.error('Error fetching player leaderboard history:', error);
     res.status(500).json({

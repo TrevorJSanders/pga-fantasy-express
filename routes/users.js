@@ -11,7 +11,7 @@ router.get("/me", requireAuth, syncUser, async (req, res) => {
 router.put("/me", requireAuth, syncUser, async (req, res) => {
   try {
     const { customName, customPicture } = req.body;
-    const user = await User.findOne({ auth0Id: req.auth.sub });
+    const user = await User.findById(req.auth.sub);
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -26,10 +26,9 @@ router.put("/me", requireAuth, syncUser, async (req, res) => {
   }
 });
 
-
 router.post("/me/upload", requireAuth, syncUser, upload.single("image"), async (req, res) => {
   try {
-    const user = await User.findOne({ auth0Id: req.auth.sub });
+    const user = await User.findById(req.auth.sub);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     user.customPicture = req.file.path;
@@ -42,7 +41,6 @@ router.post("/me/upload", requireAuth, syncUser, upload.single("image"), async (
   }
 });
 
-
 router.get("/lookup", requireAuth, syncUser, async (req, res) => {
   const { id } = req.query;
 
@@ -51,8 +49,8 @@ router.get("/lookup", requireAuth, syncUser, async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ auth0Id: id }).select(
-      "auth0Id name email customName picture customPicture"
+    const user = await User.findById(id).select(
+      "_id name email customName picture customPicture"
     );
 
     res.json(user);
@@ -87,6 +85,5 @@ router.get("/me/invites", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch invites" });
   }
 });
-
 
 module.exports = router;

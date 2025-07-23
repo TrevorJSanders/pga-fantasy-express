@@ -1,4 +1,3 @@
-//tournaments.js
 const express = require('express');
 const Tournament = require('../models/Tournament');
 
@@ -75,7 +74,6 @@ router.get('/', async (req, res) => {
       { $limit: limitNumber }
     ]);
 
-    // Count total matching docs (needed for pagination)
     const totalCount = await Tournament.countDocuments(baseMatch);
     const totalPages = Math.ceil(totalCount / limitNumber);
 
@@ -89,21 +87,33 @@ router.get('/', async (req, res) => {
         hasPrevPage: pageNumber > 1,
         limit: limitNumber
       },
-      filters: {
-        search
-      }
+      filters: { search }
     });
   } catch (error) {
     console.error('Error fetching tournaments:', error);
     res.status(500).json({
       error: 'Failed to fetch tournaments',
-      message:
-        process.env.NODE_ENV === 'development'
-          ? error.message
-          : 'Internal server error'
+      message: process.env.NODE_ENV === 'development'
+        ? error.message
+        : 'Internal server error'
     });
   }
 });
 
+// Optional: Add route to fetch a tournament by its `id` field
+router.get('/:id', async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id).lean();
+
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+
+    res.json({ tournament });
+  } catch (err) {
+    console.error('Error fetching tournament:', err);
+    res.status(500).json({ error: 'Failed to fetch tournament' });
+  }
+});
 
 module.exports = router;

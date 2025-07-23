@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const playerSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, index: true },
-    teamId: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
     position: { type: String },
     country: { type: String },
     avatarUrl: { type: String },
@@ -12,7 +11,6 @@ const playerSchema = new mongoose.Schema(
 );
 
 playerSchema.index({ name: "text" });
-playerSchema.index({ _id: 1 });
+playerSchema.index({ name: 1, country: 1 });
 
-const Player = mongoose.model("Player", playerSchema, "players");
-module.exports = Player;
+module.exports = mongoose.model("Player", playerSchema, "players");

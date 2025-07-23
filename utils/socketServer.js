@@ -22,10 +22,17 @@ const setupSocketIOServer = (httpServer) => {
 
       if (subs.entity === 'leaderboard' && subs.tournamentId) {
         try {
-          const doc = await Leaderboard.findOne({ tournamentId: subs.tournamentId })
-            .sort({ lastUpdated: -1 })
+          const doc = await Leaderboard.findOne({ _id: subs.tournamentId })
             .lean();
-            socket.emit('initial_data', { ...doc, id: doc.id || '' });
+
+          if (doc) {
+            socket.emit('initial_data', {
+              ...doc,
+              id: doc._id,
+            });
+          } else {
+            console.warn(`[socket:${socket.id}] No leaderboard found for _id=${subs.tournamentId}`);
+          }
         } catch (err) {
           console.error(`[socket:${socket.id}] Failed to send leaderboard initial_data:`, err.message);
         }
@@ -35,8 +42,12 @@ const setupSocketIOServer = (httpServer) => {
     const leaderboardHandler = (data) => {
       const subs = socket.data.subscriptions || {};
       if (subs.entity === 'leaderboard') {
-        if (subs.tournamentId && subs.tournamentId !== data.tournamentId) return;
-        socket.emit('leaderboard_update', data);
+        if (subs.tournamentId && subs.tournamentId !== data._id) return;
+
+        socket.emit('leaderboard_update', {
+          ...data,
+          id: data._id,
+        });
       }
     };
 

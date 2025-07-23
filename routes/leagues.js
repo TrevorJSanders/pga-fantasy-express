@@ -1,49 +1,48 @@
 const express = require('express');
 const router = express.Router();
 const League = require("../models/League");
+const Team = require("../models/Team");
 const { requireAuth, syncUser } = require("../utils/requireAuth");
 
-
 router.get("/admin", requireAuth, syncUser, async (req, res) => {
-  try {
-    const userId = req.auth?.sub;
-    if (!userId) return res.status(401).json({ error: "User not authenticated" });
+  const userId = req.auth?.sub;
+  if (!userId) return res.status(401).json({ error: "User not authenticated" });
 
-    const leagues = await League.find({ adminUserIds: req.auth.sub });
+  try {
+    const leagues = await League.find({ adminUserIds: userId });
     res.json(leagues);
   } catch (err) {
+    console.error("Error fetching admin leagues:", err);
     res.status(500).json({ error: "Server error fetching leagues" });
   }
 });
 
 router.get("/:id", requireAuth, syncUser, async (req, res) => {
+  const userId = req.auth.sub;
   try {
     const league = await League.findById(req.params.id);
 
-    if (!league) {
-      return res.status(404).json({ error: "League not found" });
-    }
-
-    if (!league.adminUserIds.includes(req.auth.sub)) {
+    if (!league) return res.status(404).json({ error: "League not found" });
+    if (!league.adminUserIds.includes(userId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
     res.json(league);
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching league:", err);
     res.status(500).json({ error: "Server error fetching league" });
   }
 });
 
 router.post("/", requireAuth, syncUser, async (req, res) => {
-  try {
-    const userId = req.auth.sub;
+  const userId = req.auth.sub;
 
+  try {
     const newLeague = new League({
       ...req.body,
       createdBy: userId,
-      createdAt: new Date().toISOString(),
       adminUserIds: [userId],
+      memberUserIds: [userId],
     });
 
     await newLeague.save();
@@ -54,25 +53,54 @@ router.post("/", requireAuth, syncUser, async (req, res) => {
   }
 });
 
-
 router.put("/:id", requireAuth, syncUser, async (req, res) => {
-  const league = await League.findById(req.params.id);
-  if (!league || !league.adminUserIds.includes(req.auth.sub)) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  const userId = req.auth.sub;
 
-  Object.assign(league, req.body);
-  await league.save();
-  res.json(league);
+  try {
+    const league = await League.findById(req.params.id);
+    if (!league || !league.adminUserIds.includes(userId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    Object.assign(league, req.body);
+    await league.save();
+    res.json(league);
+  } catch (err) {
+    console.error("Error updating league:", err);
+    res.status(500).json({ error: "Failed to update league" });
+  }
 });
 
 router.delete("/:id", requireAuth, syncUser, async (req, res) => {
-  const league = await League.findById(req.params.id);
-  if (!league || !league.adminUserIds.includes(req.auth.sub)) {
-    return res.status(403).json({ error: "Forbidden" });
+  const userId = req.auth.sub;
+
+  try {
+    const league = await League.findById(req.params.id);
+    if (!league || !league.adminUserIds.includes(userId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    await league.deleteOne();
+    res.status(204).send();
+  } catch (err) {
+    console.error("Error deleting league:", err);
+    res.status(500).json({ error: "Failed to delete league" });
   }
-  await league.deleteOne();
-  res.status(204).send();
+});
+
+router.get("/:id/teams", requireAuth, syncUser, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const teams = await Team.find({leagueId: id})
+      .populate("playerIds")
+      .populate("userId", "name customName email picture customPicture")
+      .lean();
+    res.json({ teams });
+  } catch (err) {
+    console.error("Error fetching teams for league:", err);
+    res.status(500).json({ error: "Failed to fetch league teams" });
+  }
 });
 
 module.exports = router;

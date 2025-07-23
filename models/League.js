@@ -34,19 +34,40 @@ const bonusPoints = new mongoose.Schema(
   { _id: false }
 );
 
+const rosterRule = new mongoose.Schema(
+  {
+    type: { type: String, enum: ["open", "draft", "locked"] },
+    maxPlayers: { type: Number },
+  },
+  { _id: false }
+);
+
+const startRule = new mongoose.Schema(
+  {
+    maxPlayers: { type: Number },
+    maxStarts: { type: Number },
+  },
+  { _id: false }
+);
+
 const leagueSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     createdBy: { type: String, required: true, index: true },
     createdAt: { type: Date, default: Date.now },
-    adminUserIds: [{ type: String, required: true, index: true }],
-    memberUserIds: [{ type: String, required: true, index: true }],
+    adminUserIds: [{ type: String, ref:"User", required: true}],
+    memberUserIds: [{ type: String, ref: "User", required: true}],
     placementPoints: [placementRule],
     strokePoints: strokePoints,
     bonusPoints: bonusPoints,
     scoringFunction: { type: String },
+    rosterRule: rosterRule,
+    startRule: startRule,
   },
   { timestamps: true }
 );
+
+leagueSchema.index({ "adminUserIds": 1 });
+leagueSchema.index({ "memberUserIds": 1 });
 
 module.exports = mongoose.model("League", leagueSchema, "leagues");

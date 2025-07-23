@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const inviteSchema = new mongoose.Schema({
-  leagueId: { type: String, required: true, index: true},
+  leagueId: { type: mongoose.Schema.Types.ObjectId, ref: "League", required: true, index: true},
   email: { type: String, required: true, index: true },
   invitedBy: { type: String, required: true },
   status: {
