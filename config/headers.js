@@ -4,7 +4,7 @@ const configureHeaders = (app) => {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
 
-    const wsUrl = process.env.WS_ORIGIN || '';
+    const wsUrl = "https://pga-fantasy-express.onrender.com";
     res.setHeader(
       'Content-Security-Policy',
       `default-src 'self'; connect-src 'self' ${wsUrl}`
