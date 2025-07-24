@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const { pubsub } = require('./changeStreams');
 const Leaderboard = require('../models/Leaderboard');
+const { allowedOrigins } = require('../config/cors');
 
 let io;
 
@@ -8,7 +9,7 @@ const setupSocketIOServer = (httpServer) => {
   io = new Server(httpServer, {
     path: "/ws",
     transports: ["polling", "websocket"], // Allow polling as a fallback
-    cors: { origin: process.env.FRONTEND_URI },
+    cors: { origin: allowedOrigins },
     allowEIO3: true,
     pingInterval: 5000, // Send ping every 5 seconds
     pingTimeout: 7000, // Wait 7 seconds for pong
