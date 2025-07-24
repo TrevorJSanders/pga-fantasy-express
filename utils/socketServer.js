@@ -11,8 +11,8 @@ const setupSocketIOServer = (httpServer) => {
     transports: ["polling", "websocket"], // Allow polling as a fallback
     cors: { origin: allowedOrigins },
     allowEIO3: true,
-    pingInterval: 2000, // Send ping every 2 seconds
-    pingTimeout: 4000, // Wait 4 seconds for pong
+    pingInterval: 1500, // Send ping every 1.5 seconds
+    pingTimeout: 3000, // Wait 3 seconds for pong
   });
 
   io.on('connection', (socket) => {
