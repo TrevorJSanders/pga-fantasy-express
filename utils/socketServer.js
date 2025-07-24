@@ -8,7 +8,7 @@ const setupSocketIOServer = (httpServer) => {
   io = new Server(httpServer, {
     path: '/ws',
     transports: ['websocket'],
-    cors: { origin: process.env.FRONTEND_URI },
+    cors: { origin: process.env.WS_ORIGIN },
     allowEIO3: true,
   });
 
@@ -54,7 +54,16 @@ const setupSocketIOServer = (httpServer) => {
     pubsub.on('leaderboardChange', leaderboardHandler);
     socketHandlers.push(['leaderboardChange', leaderboardHandler]);
 
+    socket.on("test-event", (data) => {
+      socket.emit("test-response", { received: data, serverTime: new Date() });
+    });
+
+    const heartbeatInterval = setInterval(() => {
+      socket.emit("heartbeat", { timestamp: new Date() });
+    }, 5000);
+
     socket.on('disconnect', () => {
+      clearInterval(heartbeatInterval);
       for (const [event, handler] of socketHandlers) {
         pubsub.off(event, handler);
       }

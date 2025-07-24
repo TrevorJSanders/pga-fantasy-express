@@ -17,6 +17,19 @@ router.get("/admin", requireAuth, syncUser, async (req, res) => {
   }
 });
 
+router.get("/me", requireAuth, syncUser, async (req, res) => {
+  const userId = req.auth?.sub;
+  if (!userId) return res.status(401).json({ error: "User not authenticated" });
+
+  try {
+    const leagues = await League.find({ memberUserIds: userId });
+    res.json(leagues);
+  } catch (err) {
+    console.error("Error fetching user leagues:", err);
+    res.status(500).json({ error: "Failed to fetch user leagues" });
+  }
+});
+
 router.get("/:id", requireAuth, syncUser, async (req, res) => {
   const userId = req.auth.sub;
   try {

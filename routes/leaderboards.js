@@ -132,7 +132,6 @@ router.get('/tournament/:tournamentId', async (req, res) => {
   }
 });
 
-// GET /leaderboards/player/:playerId - get leaderboard history for a player
 router.get('/player/:playerId', async (req, res) => {
   try {
     const { playerId } = req.params;
