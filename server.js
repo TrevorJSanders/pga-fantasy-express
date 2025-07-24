@@ -18,6 +18,7 @@ const playersRoutes = require("./routes/players");
 const teamRoutes = require("./routes/teams");
 
 const app = express();
+app.set("trust proxy", 1); // Trust the first proxy
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 

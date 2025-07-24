@@ -1,15 +1,21 @@
 const cors = require('cors');
 
-const isLocal = process.env.NODE_ENV !== 'production';
+const allowedOrigins = [
+  process.env.FRONTEND_URI,
+  process.env.API_ENDPOINT_URI,
+  process.env.WS_ORIGIN,
+];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowed = [process.env.API_ENDPOINT_URI, process.env.FRONTEND_URI];
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
 
-    if (!origin || allowed.includes(origin)) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}. Allowed origins are: ${allowedOrigins.join(', ')}`; 
+      callback(new Error(msg), false);
     }
   },
   credentials: true,

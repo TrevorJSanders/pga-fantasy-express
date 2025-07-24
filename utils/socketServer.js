@@ -8,7 +8,7 @@ const setupSocketIOServer = (httpServer) => {
   io = new Server(httpServer, {
     path: "/ws",
     transports: ["polling", "websocket"], // Allow polling as a fallback
-    cors: { origin: process.env.WS_ORIGIN },
+    cors: { origin: process.env.FRONTEND_URI },
     allowEIO3: true,
     pingInterval: 25000, // Increased from default 25000
     pingTimeout: 60000, // Increased from default 5000
