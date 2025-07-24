@@ -16,6 +16,7 @@ const userRoutes = require('./routes/users');
 const inviteRoutes = require('./routes/invites');
 const playersRoutes = require("./routes/players");
 const teamRoutes = require("./routes/teams");
+const logRoutes = require("./routes/logs");
 
 const app = express();
 app.set("trust proxy", 1); // Trust the first proxy
@@ -47,6 +48,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/invites', inviteRoutes);
 app.use("/api/players", playersRoutes);
 app.use("/api/teams", teamRoutes);
+app.use("/api/logs", logRoutes);
 
 app.get('/health', (req, res) => {
   console.log('✅ Health check successful');
