@@ -4,6 +4,16 @@ const League = require("../models/League");
 const Team = require("../models/Team");
 const { requireAuth, syncUser } = require("../utils/requireAuth");
 
+router.get("/all", async (req, res) => {
+  try {
+    const leagues = await League.find({});
+    res.json(leagues);
+  } catch (err) {
+    console.error("Error fetching all leagues:", err);
+    res.status(500).json({ error: "Server error fetching all leagues" });
+  }
+});
+
 router.get("/admin", requireAuth, syncUser, async (req, res) => {
   const userId = req.auth?.sub;
   if (!userId) return res.status(401).json({ error: "User not authenticated" });

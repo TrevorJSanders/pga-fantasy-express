@@ -7,7 +7,6 @@ router.get('/', async (req, res) => {
   try {
     const {
       status,
-      tournamentId,
       tour,
       sport,
       limit = 50,
@@ -20,7 +19,6 @@ router.get('/', async (req, res) => {
     const query = {};
 
     if (status) query.status = status;
-    if (tournamentId) query.tournamentId = tournamentId;
     if (tour) query.tour = tour;
     if (sport) query.sport = sport;
 
@@ -64,7 +62,6 @@ router.get('/', async (req, res) => {
       },
       filters: {
         status,
-        tournamentId,
         tour,
         sport,
         search
@@ -113,7 +110,7 @@ router.get('/tournament/:tournamentId', async (req, res) => {
     const { tournamentId } = req.params;
     const latest = req.query.latest !== 'false';
 
-    let query = Leaderboard.find({ tournamentId }).sort({ lastUpdated: -1 });
+    let query = Leaderboard.find({ _id: tournamentId }).sort({ lastUpdated: -1 });
     if (latest) query = query.limit(1);
 
     const results = await query.lean();
@@ -150,7 +147,7 @@ router.get('/player/:playerId', async (req, res) => {
     const playerHistory = leaderboards.map(lb => {
       const playerData = lb.leaderboard.find(p => p.id === playerId);
       return {
-        tournamentId: lb.tournamentId,
+        tournamentId: lb._id,
         tournamentName: lb.name,
         position: playerData?.position,
         positionValue: playerData?.positionValue,

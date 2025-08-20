@@ -1,9 +1,9 @@
 const cors = require('cors');
 
 const allowedOrigins = [
-  "https://pga-fantasy.trevspage.com",
-  "https://pga-fantasy-express.onrender.com",
-];
+  process.env.FRONTEND_URI,
+  process.env.API_ENDPOINT_URI,
+].filter(Boolean); // Filter out any undefined values
 
 const corsOptions = {
   origin: (origin, callback) => {

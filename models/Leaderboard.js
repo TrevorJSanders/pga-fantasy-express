@@ -26,7 +26,7 @@ const playerSchema = new mongoose.Schema({
 
 const leaderboardSchema = new mongoose.Schema({
   _id: { type: String, required: true }, // leaderboard id (could match tournamentId or be unique)
-  tournamentId: { type: String, ref: "Tournament", required: true }, // ref to tournament _id
+  
   sport: String,
   tour: String,
   startDatetime: Date,
@@ -58,7 +58,7 @@ const leaderboardSchema = new mongoose.Schema({
 });
 
 // Indexes
-leaderboardSchema.index({ tournamentId: 1 });
+
 leaderboardSchema.index({ status: 1 });
 leaderboardSchema.index({ slug: 1 });
 leaderboardSchema.index({ lastUpdated: -1 });

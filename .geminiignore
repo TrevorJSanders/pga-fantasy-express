@@ -1,0 +1,15 @@
+# Ignore dependencies
+node_modules
+
+# Ignore builds and dist
+.next
+dist
+build
+
+# Ignore local dev files.env*
+*.log
+
+# Miscellaneous
+.DS_Store
+*.lock
+coverage

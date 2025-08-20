@@ -6,11 +6,12 @@ require('dotenv').config();
 const { configureCors } = require('./config/cors');
 const { configureHeaders } = require('./config/headers');
 const { initializeChangeStreams } = require('./utils/changeStreams');
-const { setupSocketIOServer, closeSocketIOServer } = require('./utils/socketServer');
+const { redis } = require('./utils/redisPublisher');
+
 
 const tournamentRoutes = require('./routes/tournaments');
 const leaderboardRoutes = require('./routes/leaderboards');
-const pollingRoutes = require('./routes/polling');
+
 const leaguesRoutes = require('./routes/leagues');
 const userRoutes = require('./routes/users');
 const inviteRoutes = require('./routes/invites');
@@ -42,7 +43,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // ROUTES
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leaderboards', leaderboardRoutes);
-app.use('/api', pollingRoutes);
+
 app.use('/api/leagues', leaguesRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/invites', inviteRoutes);
@@ -51,11 +52,31 @@ app.use("/api/teams", teamRoutes);
 app.use("/api/logs", logRoutes);
 
 app.get('/health', (req, res) => {
-  console.log('✅ Health check successful');
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString()
-  });
+  const mongoStatus = mongoose.connection.readyState;
+  const redisStatus = redis.status;
+
+  const isHealthy = mongoStatus === 1 && redisStatus === 'ready';
+
+  if (isHealthy) {
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      dependencies: {
+        mongodb: 'connected',
+        redis: 'connected'
+      }
+    });
+  } else {
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      message: 'Service Unavailable: One or more dependencies are not healthy.',
+      dependencies: {
+        mongodb: mongoStatus === 1 ? 'connected' : `disconnected (state: ${mongoStatus})`,
+        redis: redisStatus === 'ready' ? 'connected' : `disconnected (state: ${redisStatus})`
+      }
+    });
+  }
 });
 
 // ERROR HANDLING
@@ -67,8 +88,7 @@ app.use((error, req, res, next) => {
   });
 });
 
-//SOCKET.IO
-setupSocketIOServer(server);
+
 
 // START SERVER
 server.listen(PORT, () => {
@@ -84,7 +104,7 @@ const gracefulShutdown = () => {
     console.log('🧹 HTTP server closed');
   });
 
-  closeSocketIOServer();
+  
 
   mongoose.connection.close(false).then(() => {
     console.log('🔌 MongoDB connection closed');
