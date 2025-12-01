@@ -59,6 +59,9 @@ router.get("/:id", requireAuth, syncUser, async (req, res) => {
 
 router.post("/", requireAuth, syncUser, async (req, res) => {
   const userId = req.auth.sub;
+  const namespace = "https://pga-fantasy.trevspage.com";
+  const name = req.auth[`${namespace}/name`];
+  const email = req.auth[`${namespace}/email`];
 
   try {
     const newLeague = new League({
@@ -69,6 +72,14 @@ router.post("/", requireAuth, syncUser, async (req, res) => {
     });
 
     await newLeague.save();
+
+    await Team.create({
+      userId,
+      leagueId: newLeague._id,
+      name: `${name || email}'s Team`,
+      playerIds: [],
+    });
+
     res.status(201).json(newLeague);
   } catch (err) {
     console.error("Failed to create league:", err);
