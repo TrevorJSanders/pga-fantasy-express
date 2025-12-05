@@ -64,8 +64,10 @@ router.post("/", requireAuth, syncUser, async (req, res) => {
   const email = req.auth[`${namespace}/email`];
 
   try {
+    const { tournaments, ...restOfBody } = req.body;
     const newLeague = new League({
-      ...req.body,
+      ...restOfBody,
+      tournaments,
       createdBy: userId,
       adminUserIds: [userId],
       memberUserIds: [userId],

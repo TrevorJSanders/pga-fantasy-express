@@ -63,6 +63,7 @@ const leagueSchema = new mongoose.Schema(
     scoringFunction: { type: String },
     rosterRule: rosterRule,
     startRule: startRule,
+    tournaments: [{ type: String, ref: "Tournament" }],
   },
   { timestamps: true }
 );
