@@ -46,7 +46,7 @@ router.get("/:id", requireAuth, syncUser, async (req, res) => {
     const league = await League.findById(req.params.id);
 
     if (!league) return res.status(404).json({ error: "League not found" });
-    if (!league.adminUserIds.includes(userId)) {
+    if (!league.memberUserIds.includes(userId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
