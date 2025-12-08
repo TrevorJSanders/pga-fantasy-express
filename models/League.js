@@ -34,6 +34,17 @@ const bonusPoints = new mongoose.Schema(
   { _id: false }
 );
 
+const scoringGroupSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    placementPoints: [placementRule],
+    strokePoints: strokePoints,
+    bonusPoints: bonusPoints,
+  },
+  { _id: true } 
+);
+
+
 const rosterRule = new mongoose.Schema(
   {
     type: { type: String, enum: ["open", "draft", "locked"] },
@@ -42,7 +53,7 @@ const rosterRule = new mongoose.Schema(
   { _id: false }
 );
 
-const startRule = new mongoose.Schema(
+const startRule = new mongoose.mongoose.Schema(
   {
     maxPlayers: { type: Number },
     maxStarts: { type: Number },
@@ -53,13 +64,11 @@ const startRule = new mongoose.Schema(
 const leagueSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    createdBy: { type: String, required: true, index: true },
+    createdBy: { type: String, ref: 'User', required: true, index: true },
     createdAt: { type: Date, default: Date.now },
-    adminUserIds: [{ type: String, ref:"User", required: true}],
+    adminUserIds: [{ type: String, ref: "User", required: true}],
     memberUserIds: [{ type: String, ref: "User", required: true}],
-    placementPoints: [placementRule],
-    strokePoints: strokePoints,
-    bonusPoints: bonusPoints,
+    scoringGroups: [scoringGroupSchema], 
     scoringFunction: { type: String },
     rosterRule: rosterRule,
     startRule: startRule,
