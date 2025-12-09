@@ -69,7 +69,6 @@ const leagueSchema = new mongoose.Schema(
     adminUserIds: [{ type: String, ref: "User", required: true}],
     memberUserIds: [{ type: String, ref: "User", required: true}],
     scoringGroups: [scoringGroupSchema], 
-    scoringFunction: { type: String },
     rosterRule: rosterRule,
     startRule: startRule,
     tournaments: [{ type: String, ref: "Tournament" }],
