@@ -18,6 +18,7 @@ const inviteRoutes = require('./routes/invites');
 const playersRoutes = require("./routes/players");
 const teamRoutes = require("./routes/teams");
 const logRoutes = require("./routes/logs");
+const scoreRoutes = require("./routes/scores");
 
 const app = express();
 app.set("trust proxy", 1); // Trust the first proxy
@@ -50,6 +51,7 @@ app.use('/api/invites', inviteRoutes);
 app.use("/api/players", playersRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/logs", logRoutes);
+app.use("/api/scores", scoreRoutes);
 
 app.get('/health', (req, res) => {
   const mongoStatus = mongoose.connection.readyState;

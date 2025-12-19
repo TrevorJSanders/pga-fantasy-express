@@ -2,6 +2,51 @@
 const mongoose = require('mongoose');
 const logger = require('./logger');
 const { publish } = require('./redisPublisher');
+const League = require('../models/League');
+const Team = require('../models/Team');
+const TournamentRoster = require('../models/TournamentRoster');
+
+const handleTournamentStart = async (tournamentId) => {
+  try {
+    logger.info(`Tournament ${tournamentId} has started. Creating roster snapshots.`);
+
+    // Find all leagues that include this tournament
+    const leagues = await League.find({ tournaments: tournamentId });
+
+    for (const league of leagues) {
+      // Find all teams in the league
+      const teams = await Team.find({ leagueId: league._id });
+
+      for (const team of teams) {
+        // Check if a snapshot already exists
+        const existingSnapshot = await TournamentRoster.findOne({
+          leagueId: league._id,
+          teamId: team._id,
+          tournamentId,
+        });
+
+        if (existingSnapshot) {
+          logger.info(`Snapshot already exists for team ${team._id} in league ${league._id} for tournament ${tournamentId}. Skipping.`);
+          continue;
+        }
+
+        // Create a new TournamentRoster document
+        const tournamentRoster = new TournamentRoster({
+          leagueId: league._id,
+          teamId: team._id,
+          tournamentId,
+          playerIds: team.activePlayerIds,
+        });
+
+        await tournamentRoster.save();
+        logger.info(`Created snapshot for team ${team._id} in league ${league._id} for tournament ${tournamentId}`);
+      }
+    }
+  } catch (error) {
+    logger.error(`Error creating roster snapshots for tournament ${tournamentId}:`, error.stack || error);
+    console.error(`FULL ERROR STACK for tournament ${tournamentId}:`, error);
+  }
+};
 
 const initializeChangeStreams = () => {
   try {
@@ -28,6 +73,15 @@ const initializeChangeStreams = () => {
 
     tournamentsChangeStream.on('change', (changeEvent) => {
       try {
+        if (
+          changeEvent.operationType === 'update' &&
+          changeEvent.updateDescription.updatedFields &&
+          changeEvent.updateDescription.updatedFields.status === 'In Progress'
+        ) {
+          const tournamentId = changeEvent.documentKey._id;
+          handleTournamentStart(tournamentId);
+        }
+
         const processedChange = extractChangedFields(changeEvent, 'tournament');
         logger.info({ change: processedChange }, '[Change Stream] Detected tournament change');
         publish('tournament-changes', processedChange);
@@ -116,21 +170,21 @@ const initializeChangeStreams = () => {
 };
 
 const extractChangedFields = (changeEvent, collectionType) => {
-  const { operationType, fullDocument } = changeEvent;
+  const { operationType, fullDocument, documentKey } = changeEvent;
 
   let id = null;
   let leagueId = null;
   if (collectionType === 'leaderboard') {
-    id = fullDocument?._id || null;
+    id = documentKey._id || null;
   } else if (collectionType === 'tournament') {
-    id = fullDocument?.id || null;
+    id = documentKey._id || null;
   } else if (collectionType === 'league') {
-    id = fullDocument?._id || null;
+    id = documentKey._id || null;
   } else if (collectionType === 'team') {
-    id = fullDocument?._id || null;
+    id = documentKey._id || null;
     leagueId = fullDocument?.leagueId || null;
   } else if (collectionType === 'player') {
-    id = fullDocument?._id || null;
+    id = documentKey._id || null;
   }
 
   const changedData = {
@@ -158,11 +212,11 @@ const extractChangedFields = (changeEvent, collectionType) => {
 };
 
 const extractInviteFields = (changeEvent) => {
-  const { operationType, fullDocument } = changeEvent;
+  const { operationType, fullDocument, documentKey } = changeEvent;
   const changedData = {
     type: 'invite_update',
     operationType,
-    id: fullDocument?._id || null,
+    id: documentKey._id || null,
     userId: fullDocument?.user || null,
     collectionType: 'invite',
     timestamp: new Date().toISOString(),
@@ -174,7 +228,7 @@ const extractInviteFields = (changeEvent) => {
     changedData.changedFields = changeEvent.updateDescription?.updatedFields || {};
     changedData.removedFields = changeEvent.updateDescription?.removedFields || [];
   } else if (operationType === 'delete') {
-    changedData.deletedId = fullDocument?._id || null;
+    changedData.deletedId = documentKey._id || null;
   }
 
   return changedData;

@@ -6,6 +6,7 @@ const teamSchema = new mongoose.mongoose.Schema(
     leagueId: { type: mongoose.Schema.Types.ObjectId, ref: "League", required: true, index: true },
     name: { type: String, default: "My Team" },
     playerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Player" }],
+    activePlayerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Player" }],
     playerUsage: {
       type: Map,
       of: Number,
