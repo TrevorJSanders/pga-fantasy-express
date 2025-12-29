@@ -23,7 +23,8 @@ router.get('/', async (req, res) => {
     const {
       limit = 50,
       page = 1,
-      search
+      search,
+      year,
     } = req.query;
 
     const pageNumber = Math.max(1, parseInt(page));
@@ -41,6 +42,20 @@ router.get('/', async (req, res) => {
           { course: { $regex: search, $options: 'i' } }
         ]
       });
+    }
+
+    if (year) {
+      const yearNumber = parseInt(year);
+      if (!isNaN(yearNumber)) {
+        const startDate = new Date(Date.UTC(yearNumber, 0, 1));
+        const endDate = new Date(Date.UTC(yearNumber + 1, 0, 1));
+        matchConditions.push({
+          startDatetime: {
+            $gte: startDate,
+            $lt: endDate,
+          },
+        });
+      }
     }
 
     const baseMatch = matchConditions.length ? { $and: matchConditions } : {};
@@ -102,7 +117,7 @@ router.get('/', async (req, res) => {
         hasPrevPage: pageNumber > 1,
         limit: limitNumber
       },
-      filters: { search }
+      filters: { search, year }
     });
   } catch (error) {
     console.error('Error fetching tournaments:', error);
