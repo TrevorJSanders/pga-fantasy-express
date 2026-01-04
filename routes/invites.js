@@ -35,24 +35,48 @@ router.post("/:id/invite", requireAuth, syncUser, async (req, res) => {
   }
 });
 
-router.get("/me", requireAuth, async (req, res) => {
+router.post("/mark-read", requireAuth, syncUser, async (req, res) => {
+  const { inviteIds } = req.body;
+  if (!inviteIds || !Array.isArray(inviteIds)) {
+    return res.status(400).json({ message: 'inviteIds are required.' });
+  }
+
+  try {
+    const email = req.user.email;
+    await Invite.updateMany(
+      { _id: { $in: inviteIds }, email: email },
+      { $set: { read: true } }
+    );
+    res.status(200).json({ message: "Invites marked as read" });
+  } catch (error) {
+    res.status(500).json({ message: 'Error marking invites as read.' });
+  }
+});
+
+router.get("/me", requireAuth, syncUser, async (req, res) => { // requireAuth and syncUser re-enabled
   const namespace = "https://pga-fantasy.trevspage.com";
   const email = req.auth[`${namespace}/email`];
+  // console.log("Fetching invites for email:", email); // Removed console.log
 
   try {
     const invites = await Invite.find({ email, status: "pending" });
+    // console.log("Invites found in DB for email:", email, ":", invites); // Removed log
     const leagueIds = invites.map(invite => invite.leagueId);
     const leagues = await League.find({ _id: { $in: leagueIds } }).select("name");
+    // console.log("Leagues found for invite IDs:", leagueIds, ":", leagues); // Removed log
 
     const response = invites.map(invite => {
       const league = leagues.find(l => l._id.toString() === invite.leagueId.toString());
       return {
+        _id: invite._id,
         leagueId: invite.leagueId,
         leagueName: league?.name || "Unknown League",
         invitedBy: invite.invitedBy,
         createdAt: invite.createdAt,
+        read: invite.read,
       };
     });
+    // console.log("Final response being sent:", response); // Removed log
     res.json(response);
   } catch (err) {
     console.error("Error fetching invites:", err);

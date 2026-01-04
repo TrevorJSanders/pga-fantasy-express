@@ -41,9 +41,8 @@ const scoringGroupSchema = new mongoose.Schema(
     strokePoints: strokePoints,
     bonusPoints: bonusPoints,
   },
-  { _id: true } 
+  { _id: true }
 );
-
 
 const rosterRule = new mongoose.Schema(
   {
@@ -68,7 +67,7 @@ const leagueSchema = new mongoose.Schema(
     createdAt: { type: Date, default: Date.now },
     adminUserIds: [{ type: String, ref: "User", required: true}],
     memberUserIds: [{ type: String, ref: "User", required: true}],
-    scoringGroups: [scoringGroupSchema], 
+    scoringGroups: [scoringGroupSchema],
     rosterRule: rosterRule,
     startRule: startRule,
     tournaments: [{ type: String, ref: "Tournament" }],

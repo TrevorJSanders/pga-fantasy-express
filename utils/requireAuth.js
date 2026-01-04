@@ -1,11 +1,11 @@
-import { expressjwt } from "express-jwt";
-import jwksRsa from "jwks-rsa";
-import dotenv from "dotenv";
+const { expressjwt } = require("express-jwt");
+const jwksRsa = require("jwks-rsa");
+const dotenv = require("dotenv");
 dotenv.config();
 
-import User from "../models/User.js";
+const User = require("../models/User.js");
 
-export const requireAuth = expressjwt({
+const requireAuth = expressjwt({
   secret: jwksRsa.expressJwtSecret({
     cache: true,
     rateLimit: true,
@@ -17,7 +17,7 @@ export const requireAuth = expressjwt({
   algorithms: ["RS256"],
 });
 
-export async function syncUser(req, res, next) {
+async function syncUser(req, res, next) {
   const namespace = "https://pga-fantasy.trevspage.com";
   const {
   sub,
@@ -48,4 +48,4 @@ export async function syncUser(req, res, next) {
   }
 }
 
-export default requireAuth;
+module.exports = { requireAuth, syncUser };

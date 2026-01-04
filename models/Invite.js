@@ -9,6 +9,7 @@ const inviteSchema = new mongoose.Schema({
     enum: ["pending", "accepted", "declined"],
     default: "pending",
   },
+  read: { type: Boolean, default: false, index: true },
   token: { type: String },
   createdAt: { type: Date, default: Date.now, expires: '30d' }
 })

@@ -3,6 +3,8 @@ const router = express.Router();
 const User = require("../models/User");
 const { upload } = require("../utils/cloudinary");
 const { requireAuth, syncUser } = require("../utils/requireAuth");
+const League = require("../models/League");
+
 
 router.get("/me", requireAuth, syncUser, async (req, res) => {
   res.json(req.user);
@@ -38,6 +40,25 @@ router.post("/me/upload", requireAuth, syncUser, upload.single("image"), async (
   } catch (err) {
     console.error("Upload failed:", err);
     res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+router.post("/lookup/bulk", requireAuth, async (req, res) => {
+  const { ids } = req.body;
+
+  if (!ids || !Array.isArray(ids)) {
+    return res.status(400).json({ error: "Missing or invalid user IDs in request body" });
+  }
+
+  try {
+    const users = await User.find({
+      _id: { $in: ids },
+    }).select("_id name email customName picture customPicture");
+
+    res.json(users);
+  } catch (err) {
+    console.error("Error looking up users:", err);
+    res.status(500).json({ error: "Server error fetching users" });
   }
 });
 
