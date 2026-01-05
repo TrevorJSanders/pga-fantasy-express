@@ -4,6 +4,7 @@ const League = require("../models/League");
 const Tournament = require("../models/Tournament");
 const router = express.Router();
 const { requireAuth, syncUser } = require("../utils/requireAuth");
+const { uploadTeam } = require("../utils/cloudinary");
 
 const isRosterLocked = async (leagueId) => {
   const league = await League.findById(leagueId).populate('tournaments');
@@ -46,6 +47,13 @@ router.post("/", requireAuth, syncUser, async (req, res) => {
   }
 });
 
+router.post("/:leagueId/upload-image", requireAuth, syncUser, uploadTeam.single('image'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Image upload failed. No file provided.' });
+  }
+  res.status(201).json({ imageUrl: req.file.path });
+});
+
 router.get("/:leagueId/my-team", requireAuth, syncUser, async (req, res) => {
   const userId = req.auth.sub;
   const { leagueId } = req.params;
@@ -53,7 +61,7 @@ router.get("/:leagueId/my-team", requireAuth, syncUser, async (req, res) => {
   try {
     const team = await Team.findOne({ userId, leagueId })
       .populate("playerIds")
-      .lean();
+      .populate("userId");
 
     if (!team) return res.status(404).json({ error: "Team not found" });
 
@@ -137,6 +145,29 @@ router.patch("/:leagueId/name", requireAuth, syncUser, async (req, res) => {
   } catch (err) {
     console.error("Error updating team name:", err);
     res.status(500).json({ error: "Failed to update team name" });
+  }
+});
+
+router.patch("/:leagueId/image", requireAuth, syncUser, async (req, res) => {
+  const userId = req.auth.sub;
+  const { leagueId } = req.params;
+  const { imageUrl } = req.body;
+
+  if (!imageUrl) return res.status(400).json({ error: "Missing image URL" });
+
+  try {
+    const team = await Team.findOneAndUpdate(
+        { userId, leagueId },
+        { imageUrl },
+        { new: true }
+    ).lean();
+
+    if (!team) return res.status(404).json({ error: "Team not found" });
+
+    res.json(team);
+  } catch (err) {
+    console.error("Error updating team image:", err);
+    res.status(500).json({ error: "Failed to update team image" });
   }
 });
 

@@ -5,6 +5,7 @@ const teamSchema = new mongoose.mongoose.Schema(
     userId: { type: String, ref: "User", required: true, index: true },
     leagueId: { type: mongoose.Schema.Types.ObjectId, ref: "League", required: true, index: true },
     name: { type: String, default: "My Team" },
+    imageUrl: { type: String },
     playerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Player" }],
     activePlayerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Player" }],
     playerUsage: {

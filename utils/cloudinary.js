@@ -8,7 +8,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
+const profilePictureStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'profile_pictures',
@@ -17,6 +17,16 @@ const storage = new CloudinaryStorage({
   },
 });
 
-const upload = multer({ storage });
+const teamImageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'team_images',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
+    transformation: [{ width: 400, height: 400, crop: 'limit' }],
+  },
+});
 
-module.exports = { cloudinary, upload };
+const uploadProfile = multer({ storage: profilePictureStorage });
+const uploadTeam = multer({ storage: teamImageStorage });
+
+module.exports = { cloudinary, uploadProfile, uploadTeam };

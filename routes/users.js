@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require("../models/User");
-const { upload } = require("../utils/cloudinary");
+const { uploadProfile } = require("../utils/cloudinary");
 const { requireAuth, syncUser } = require("../utils/requireAuth");
 const League = require("../models/League");
 
@@ -28,7 +28,7 @@ router.put("/me", requireAuth, syncUser, async (req, res) => {
   }
 });
 
-router.post("/me/upload", requireAuth, syncUser, upload.single("image"), async (req, res) => {
+router.post("/me/upload", requireAuth, syncUser, uploadProfile.single("image"), async (req, res) => {
   try {
     const user = await User.findById(req.auth.sub);
     if (!user) return res.status(404).json({ error: "User not found" });
