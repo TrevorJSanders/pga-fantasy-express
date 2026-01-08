@@ -72,6 +72,23 @@ router.get("/:leagueId/my-team", requireAuth, syncUser, async (req, res) => {
   }
 });
 
+router.get("/:teamId", requireAuth, async (req, res) => {
+  const { teamId } = req.params;
+
+  try {
+    const team = await Team.findById(teamId)
+      .populate("playerIds")
+      .populate("userId");
+
+    if (!team) return res.status(404).json({ error: "Team not found" });
+
+    res.json(team);
+  } catch (err) {
+    console.error("Error getting team by ID:", err);
+    res.status(500).json({ error: "Failed to fetch team" });
+  }
+});
+
 router.post("/:leagueId/add-player", requireAuth, syncUser, async (req, res) => {
   const userId = req.auth.sub;
   const { leagueId } = req.params;
