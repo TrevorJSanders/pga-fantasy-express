@@ -27,88 +27,43 @@ router.get('/', async (req, res) => {
       year,
     } = req.query;
 
-    const pageNumber = Math.max(1, parseInt(page));
-    const limitNumber = Math.min(100, Math.max(1, parseInt(limit)));
+    const pageNumber = Math.max(1, parseInt(page, 10));
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit, 10)));
     const skip = (pageNumber - 1) * limitNumber;
 
-    const now = new Date();
-    const matchConditions = [];
+    const matchConditions = {};
 
     if (search) {
-      matchConditions.push({
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { location: { $regex: search, $options: 'i' } },
-          { course: { $regex: search, $options: 'i' } }
-        ]
-      });
+      matchConditions.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } },
+        { course: { $regex: search, $options: 'i' } }
+      ];
     }
 
     if (year) {
-      const yearNumber = parseInt(year);
+      const yearNumber = parseInt(year, 10);
       if (!isNaN(yearNumber)) {
         const startDate = new Date(Date.UTC(yearNumber, 0, 1));
         const endDate = new Date(Date.UTC(yearNumber + 1, 0, 1));
-        matchConditions.push({
-          startDatetime: {
-            $gte: startDate,
-            $lt: endDate,
-          },
-        });
+        matchConditions.startDatetime = {
+          $gte: startDate,
+          $lt: endDate,
+        };
       }
     }
 
-    const baseMatch = matchConditions.length ? { $and: matchConditions } : {};
-
-    const results = await Tournament.aggregate([
-      { $match: baseMatch },
-      {
-        $facet: {
-          inProgress: [
-            {
-              $match: {
-                startDatetime: { $lte: now },
-                endDatetime: { $gte: now }
-              }
-            },
-            { $sort: { startDatetime: -1, _id: 1 } }
-          ],
-          scheduled: [
-            {
-              $match: {
-                startDatetime: { $gt: now }
-              }
-            },
-            { $sort: { startDatetime: 1, _id: 1 } }
-          ],
-          completed: [
-            {
-              $match: {
-                endDatetime: { $lt: now }
-              }
-            },
-            { $sort: { startDatetime: -1, _id: 1 } }
-          ]
-        }
-      },
-      {
-        $project: {
-          allTournaments: {
-            $concatArrays: ['$inProgress', '$scheduled', '$completed']
-          }
-        }
-      },
-      { $unwind: '$allTournaments' },
-      { $replaceRoot: { newRoot: '$allTournaments' } },
-      { $skip: skip },
-      { $limit: limitNumber }
-    ]);
-
-    const totalCount = await Tournament.countDocuments(baseMatch);
+    const totalCount = await Tournament.countDocuments(matchConditions);
     const totalPages = Math.ceil(totalCount / limitNumber);
 
+    const tournaments = await Tournament.find(matchConditions)
+      .sort({ startDatetime: 1 }) // ASCENDING SORT
+      .skip(skip)
+      .limit(limitNumber)
+      .lean();
+
     res.json({
-      tournaments: results,
+      tournaments,
       pagination: {
         currentPage: pageNumber,
         totalPages,
